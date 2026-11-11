@@ -3,6 +3,9 @@ import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
+const __impeccableLiveDev =
+	process.env.NODE_ENV === 'development' ? ['http://localhost:8400' as const] : [];
+
 export default defineConfig({
 	server: { proxy: { '/api': { target: 'http://localhost:8081', changeOrigin: false } } },
 	plugins: [
@@ -12,7 +15,8 @@ export default defineConfig({
 				mode: 'auto',
 				directives: {
 					'default-src': ['self'],
-					'script-src': ['self'],
+					'script-src': ['self', ...__impeccableLiveDev],
+					'connect-src': ['self', ...__impeccableLiveDev],
 					'style-src': ['self', 'unsafe-inline'],
 					'img-src': ['self', 'data:'],
 					'font-src': ['self', 'data:'],
