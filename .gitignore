@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+node_modules/
+.svelte-kit/
+frontend/build/
+frontend/test-results/
+frontend/playwright-report/
+backend/bin/
+.tools/
+*.log
+.DS_Store
+
+backend/coverage.out

@@ -1,0 +1,12 @@
+{
+	"name": "@etheyl/openapi-tooling",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"generate": "openapi-typescript ../../../docs/openapi.yaml -o ../../src/lib/api/schema.d.ts"
+	},
+	"devDependencies": {
+		"openapi-typescript": "7.13.0",
+		"typescript": "5.9.3"
+	}
+}

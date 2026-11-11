@@ -1,0 +1,21 @@
+{
+  auto_https off
+  admin off
+}
+:80 {
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    X-Frame-Options DENY
+    -Server
+  }
+  encode zstd gzip
+  handle /api/* {
+    reverse_proxy api:8081 {
+      header_up X-Real-IP {remote_host}
+    }
+  }
+  handle {
+    reverse_proxy frontend:3000
+  }
+}

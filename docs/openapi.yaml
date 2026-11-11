@@ -1,0 +1,273 @@
+openapi: 3.1.0
+info:
+  title: etheyl API
+  version: 1.0.0
+  description: |
+    Первый этап MVP. Все ответы приватные (Cache-Control no-store).
+    Для POST нужны точный Origin, HttpOnly CSRF-cookie и заголовок X-CSRF-Token,
+    полученные через GET /auth/csrf. В HTTPS имена cookies имеют префикс __Host-.
+    Сессия живёт 30 дней; подтверждение email — 24 часа; сброс пароля — 1 час.
+    Все auth POST: 60 запросов/IP/15 минут; регистрация 5/IP;
+    вход 10/email; письма 3/email/тип. Ответ 429 содержит Retry-After: 900.
+servers:
+  - url: /api/v1
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        '200': { $ref: '#/components/responses/Status' }
+        default: { $ref: '#/components/responses/Error' }
+  /auth/csrf:
+    get:
+      operationId: csrf
+      responses:
+        '200':
+          description: CSRF token and HttpOnly cookie
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token]
+                properties:
+                  token: { type: string }
+        default: { $ref: '#/components/responses/Error' }
+  /me:
+    get:
+      operationId: me
+      responses:
+        '200':
+          description: Current user or null for an anonymous/expired/revoked session
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user:
+                    oneOf:
+                      - { $ref: '#/components/schemas/User' }
+                      - { type: 'null' }
+        default: { $ref: '#/components/responses/Error' }
+  /admin/status:
+    get:
+      operationId: adminStatus
+      security: [{session: []}]
+      responses:
+        '200': { $ref: '#/components/responses/Status' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+  /auth/register:
+    post:
+      operationId: register
+      security: [{csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Register' }
+      responses:
+        '202': { $ref: '#/components/responses/Message' }
+        '409': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+  /auth/login:
+    post:
+      operationId: login
+      security: [{csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+                password: { type: string, minLength: 1, maxLength: 256 }
+      responses:
+        '200':
+          description: Session cookie and user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+  /auth/logout:
+    post:
+      operationId: logout
+      security: [{csrf: []}]
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+        default: { $ref: '#/components/responses/Error' }
+  /auth/verify-email:
+    post:
+      operationId: verifyEmail
+      security: [{csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Token' }
+      responses:
+        '200':
+          description: Email verified and session created atomically; sets HttpOnly session cookie
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+        default: { $ref: '#/components/responses/Error' }
+  /auth/verify-email/preview:
+    post:
+      operationId: previewVerification
+      description: Returns the email for a valid verification token without consuming it or signing in.
+      security: [{csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Token' }
+      responses:
+        '200':
+          description: Email address to display before confirmation
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [email]
+                properties:
+                  email: { type: string, format: email }
+        default: { $ref: '#/components/responses/Error' }
+  /auth/resend-verification:
+    post:
+      operationId: resendVerification
+      security: [{csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Email' }
+      responses:
+        '202': { $ref: '#/components/responses/Message' }
+        default: { $ref: '#/components/responses/Error' }
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      security: [{csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Email' }
+      responses:
+        '202': { $ref: '#/components/responses/Message' }
+        default: { $ref: '#/components/responses/Error' }
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      description: Rejects the current password with 422 password_unchanged; the action token and existing sessions remain valid for a corrected submission.
+      security: [{csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token, password]
+              properties:
+                token: { type: string, minLength: 43, maxLength: 43 }
+                password: { $ref: '#/components/schemas/Password' }
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+        '422': { $ref: '#/components/responses/Error' }
+        default: { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    session: { type: apiKey, in: cookie, name: etheyl_session }
+    csrf: { type: apiKey, in: header, name: X-CSRF-Token }
+  schemas:
+    User:
+      type: object
+      required: [id, email, nickname, emailVerified, isAdmin]
+      properties:
+        id: { type: string, pattern: '^[0-9]+$' }
+        email: { type: string, format: email }
+        nickname: { $ref: '#/components/schemas/Nickname' }
+        emailVerified: { type: boolean }
+        isAdmin: { type: boolean }
+    Email:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+    Password:
+      type: string
+      minLength: 12
+      maxLength: 256
+      description: At least 12 Unicode characters, at most 256 UTF-8 bytes; no trimming or normalization.
+    Nickname:
+      type: string
+      minLength: 3
+      maxLength: 30
+      pattern: '^[A-Za-z0-9_-]{3,30}$'
+      description: Unique case-insensitive profile URL identifier. ASCII letters, digits, underscore and hyphen only; dots/spaces/Unicode rejected. Stored and returned in lowercase.
+    Token:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: { type: string, minLength: 43, maxLength: 43 }
+    Register:
+      type: object
+      additionalProperties: false
+      required: [nickname, email, password]
+      properties:
+        nickname: { $ref: '#/components/schemas/Nickname' }
+        email: { type: string, format: email, maxLength: 254 }
+        password: { $ref: '#/components/schemas/Password' }
+    Message:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+  responses:
+    Message:
+      description: Success; password recovery and resend return the same response for existing and missing accounts
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Message' }
+    Status:
+      description: Service ready
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [status]
+            properties:
+              status: { type: string, const: ok }
+    Error:
+      description: '400 invalid/expired token, 401 credentials, 403 CSRF/unverified/forbidden, 409 email/nickname already registered, 415 content type, 422 validation/unchanged password, 429 rate limit, 500 internal, 503 busy/unavailable'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }

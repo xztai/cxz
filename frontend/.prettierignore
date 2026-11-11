@@ -1,0 +1,8 @@
+node_modules
+.svelte-kit
+build
+pnpm-lock.yaml
+src/lib/api/schema.d.ts
+.agents
+test-results
+playwright-report

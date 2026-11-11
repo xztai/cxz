@@ -1,0 +1,7 @@
+minimumReleaseAgeExclude:
+  - bits-ui@2.21.0
+packages:
+  - tools/openapi
+overrides:
+  # bits-ui's older runed range targets SvelteKit 2. Use the stable Kit 3 release.
+  runed: 0.38.0
