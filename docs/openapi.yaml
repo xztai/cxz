@@ -3,8 +3,8 @@ info:
   title: etheyl API
   version: 1.0.0
   description: |
-    Первый этап MVP. Все ответы приватные (Cache-Control no-store).
-    Для POST нужны точный Origin, HttpOnly CSRF-cookie и заголовок X-CSRF-Token,
+    Профили авторов и уровни подписки. Все ответы приватные (Cache-Control no-store).
+    Для POST, PUT и DELETE нужны точный Origin, HttpOnly CSRF-cookie и заголовок X-CSRF-Token,
     полученные через GET /auth/csrf. В HTTPS имена cookies имеют префикс __Host-.
     Сессия живёт 30 дней; подтверждение email — 24 часа; сброс пароля — 1 час.
     Все auth POST: 60 запросов/IP/15 минут; регистрация 5/IP;
@@ -191,11 +191,230 @@ paths:
         '200': { $ref: '#/components/responses/Message' }
         '422': { $ref: '#/components/responses/Error' }
         default: { $ref: '#/components/responses/Error' }
+  /me/profile:
+    get:
+      operationId: ownProfile
+      security: [{session: []}]
+      responses:
+        '200':
+          description: Own profile; null until first save
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profile]
+                properties:
+                  profile:
+                    oneOf:
+                      - {$ref: '#/components/schemas/Profile'}
+                      - {type: 'null'}
+        default: {$ref: '#/components/responses/Error'}
+    put:
+      operationId: saveProfile
+      description: Creates public profile and atomically updates the account nickname. Owner comes from the session.
+      security: [{session: [], csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ProfileInput'}
+      responses:
+        '200': {$ref: '#/components/responses/Profile'}
+        default: {$ref: '#/components/responses/Error'}
+  /me/profile/images/{kind}:
+    parameters:
+      - {name: kind, in: path, required: true, schema: {type: string, enum: [avatar, cover]}}
+    put:
+      operationId: uploadProfileImage
+      description: Raw image bytes, at most 5 MiB and 16 million pixels, each side at most 8192. Actual type must match Content-Type. Re-encoded before storage.
+      security: [{session: [], csrf: []}]
+      requestBody:
+        required: true
+        content:
+          image/png: {schema: {type: string, format: binary}}
+          image/jpeg: {schema: {type: string, format: binary}}
+          image/webp: {schema: {type: string, format: binary}}
+      responses:
+        '200': {$ref: '#/components/responses/Profile'}
+        default: {$ref: '#/components/responses/Error'}
+    delete:
+      operationId: removeProfileImage
+      security: [{session: [], csrf: []}]
+      responses:
+        '200': {$ref: '#/components/responses/Profile'}
+        default: {$ref: '#/components/responses/Error'}
+  /authors:
+    get:
+      operationId: listAuthors
+      parameters:
+        - {name: q, in: query, schema: {type: string, maxLength: 100}}
+        - {name: offset, in: query, schema: {type: integer, minimum: 0, maximum: 100000, default: 0}}
+      responses:
+        '200':
+          description: Up to 24 public authors; literal case-insensitive search across nickname, name and description
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [authors, hasMore]
+                properties:
+                  authors: {type: array, items: {$ref: '#/components/schemas/Profile'}}
+                  hasMore: {type: boolean}
+        default: {$ref: '#/components/responses/Error'}
+  /authors/{nickname}:
+    get:
+      operationId: publicAuthor
+      parameters:
+        - {name: nickname, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Public profile and active tiers ordered highest first; no email or storage keys
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profile, tiers]
+                properties:
+                  profile: {$ref: '#/components/schemas/Profile'}
+                  tiers: {type: array, items: {$ref: '#/components/schemas/Tier'}}
+        default: {$ref: '#/components/responses/Error'}
+  /authors/{nickname}/images/{kind}:
+    get:
+      operationId: publicProfileImage
+      parameters:
+        - {name: nickname, in: path, required: true, schema: {type: string}}
+        - {name: kind, in: path, required: true, schema: {type: string, enum: [avatar, cover]}}
+      responses:
+        '200':
+          description: Validated image streamed from private storage
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+        default: {$ref: '#/components/responses/Error'}
+  /me/tiers:
+    get:
+      operationId: ownTiers
+      security: [{session: []}]
+      responses:
+        '200': {$ref: '#/components/responses/Tiers'}
+        default: {$ref: '#/components/responses/Error'}
+    post:
+      operationId: createTier
+      description: New tier is always placed above all existing tiers, including archived tiers. Maximum 50 active tiers.
+      security: [{session: [], csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TierInput'}
+      responses:
+        '201': {$ref: '#/components/responses/Tier'}
+        default: {$ref: '#/components/responses/Error'}
+  /me/tiers/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: string}}
+    put:
+      operationId: updateTier
+      security: [{session: [], csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TierInput'}
+      responses:
+        '200': {$ref: '#/components/responses/Tier'}
+        default: {$ref: '#/components/responses/Error'}
+    delete:
+      operationId: deleteTier
+      description: Unused tiers are deleted; used tiers are archived and retain their position and access hierarchy.
+      security: [{session: [], csrf: []}]
+      responses:
+        '200': {$ref: '#/components/responses/Message'}
+        default: {$ref: '#/components/responses/Error'}
+  /me/tiers/{id}/archive:
+    post:
+      operationId: archiveTier
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      security: [{session: [], csrf: []}]
+      responses:
+        '200': {$ref: '#/components/responses/Message'}
+        default: {$ref: '#/components/responses/Error'}
+  /me/tiers/order:
+    put:
+      operationId: reorderTiers
+      description: Complete list of active IDs, highest first. Positions of used tiers are immutable; archived positions are reserved.
+      security: [{session: [], csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [ids]
+              properties:
+                ids: {type: array, maxItems: 50, items: {type: string}}
+      responses:
+        '200': {$ref: '#/components/responses/Tiers'}
+        default: {$ref: '#/components/responses/Error'}
 components:
   securitySchemes:
     session: { type: apiKey, in: cookie, name: etheyl_session }
     csrf: { type: apiKey, in: header, name: X-CSRF-Token }
   schemas:
+    ProfileInput:
+      type: object
+      additionalProperties: false
+      required: [nickname, displayName, description]
+      properties:
+        nickname: {type: string, minLength: 3, maxLength: 30, pattern: '^[A-Za-z0-9_-]+$'}
+        displayName: {type: string, minLength: 1, maxLength: 80}
+        description: {type: string, maxLength: 5000}
+    Profile:
+      type: object
+      required: [id, nickname, displayName, description, avatar, cover]
+      properties:
+        id: {type: string}
+        nickname: {type: string}
+        displayName: {type: string}
+        description: {type: string}
+        avatar:
+          oneOf:
+            - {$ref: '#/components/schemas/ImageMetadata'}
+            - {type: 'null'}
+        cover:
+          oneOf:
+            - {$ref: '#/components/schemas/ImageMetadata'}
+            - {type: 'null'}
+    ImageMetadata:
+      type: object
+      required: [url, contentType, sizeBytes, width, height]
+      properties:
+        url: {type: string}
+        contentType: {type: string}
+        sizeBytes: {type: integer}
+        width: {type: integer}
+        height: {type: integer}
+    TierInput:
+      type: object
+      additionalProperties: false
+      required: [name, description, priceKopecks]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 80}
+        description: {type: string, maxLength: 5000}
+        priceKopecks: {type: integer, minimum: 0, maximum: 100000000, description: 'Price in kopecks, RUB'}
+    Tier:
+      type: object
+      required: [id, name, description, priceKopecks, position, used, archived]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        description: {type: string}
+        priceKopecks: {type: integer}
+        position: {type: integer}
+        used: {type: boolean}
+        archived: {type: boolean}
     User:
       type: object
       required: [id, email, nickname, emailVerified, isAdmin]
@@ -252,6 +471,33 @@ components:
             code: { type: string }
             message: { type: string }
   responses:
+    Profile:
+      description: Saved public profile
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [profile]
+            properties:
+              profile: {$ref: '#/components/schemas/Profile'}
+    Tier:
+      description: Saved tier
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [tier]
+            properties:
+              tier: {$ref: '#/components/schemas/Tier'}
+    Tiers:
+      description: Own tiers including archive, highest first
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [tiers]
+            properties:
+              tiers: {type: array, items: {$ref: '#/components/schemas/Tier'}}
     Message:
       description: Success; password recovery and resend return the same response for existing and missing accounts
       content:

@@ -1,5 +1,7 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
+import { creatorExperience } from '../helpers/creators.js';
+
 const mailpit = process.env.MAILPIT_URL ?? 'http://localhost:8025';
 
 async function emailLink(
@@ -121,6 +123,8 @@ test('регистрация, письмо, вход, восстановлени
 		await page.evaluate(() => document.body.clientWidth)
 	);
 	await page.screenshot({ path: testInfo.outputPath('account.png'), fullPage: true });
+
+	await creatorExperience(page, browser, testInfo, nickname);
 
 	const originalCookies = await context.cookies();
 	expect(originalCookies.find((cookie) => cookie.name === 'etheyl_session')?.httpOnly).toBe(true);

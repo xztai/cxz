@@ -19,6 +19,7 @@ import (
 	"etheyl.local/backend/internal/config"
 	"etheyl.local/backend/internal/httpapi"
 	"etheyl.local/backend/internal/mailqueue"
+	"etheyl.local/backend/internal/media"
 	"etheyl.local/backend/internal/observability"
 	"etheyl.local/backend/internal/store"
 	"etheyl.local/backend/migrations"
@@ -82,6 +83,12 @@ func run(logger *slog.Logger) error {
 		}
 		logger.Info("migrations applied")
 		return nil
+	case "storage-init":
+		storage, err := media.New(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3Secure)
+		if err != nil {
+			return err
+		}
+		return storage.Initialize(ctx)
 	case "admin":
 		return createAdmin(ctx, pool, os.Args[2:])
 	case "requeue-mail":

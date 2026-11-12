@@ -76,8 +76,10 @@
 					>
 				</div>
 			</Card.Content>
-			<Card.Footer
-				><Button href="/auth/forgot" variant="link">Изменить пароль через почту</Button
+			<Card.Footer class="flex flex-col items-start gap-2"
+				><Button href="/account/profile" variant="outline">Профиль и настройки</Button><Button
+					href="/auth/forgot"
+					variant="link">Изменить пароль через почту</Button
 				></Card.Footer
 			>
 		</Card.Root>
@@ -94,10 +96,12 @@
 							<Empty.Media variant="icon"><BookOpen aria-hidden="true" /></Empty.Media>
 							<Empty.Title><h2>Здесь будут ваши истории</h2></Empty.Title>
 							<Empty.Description
-								>Вы уже можете входить в аккаунт и управлять доступом к нему. Каталог авторов и
-								подписки появятся на следующих этапах.</Empty.Description
+								>Находите интересных людей в каталоге авторов. Оформление подписок появится позже.</Empty.Description
 							>
 						</Empty.Header>
+						<Empty.Content
+							><Button href="/authors" variant="outline">Найти автора</Button></Empty.Content
+						>
 					</Empty.Root>
 				</Tabs.Content>
 				<Tabs.Content value="creator">
@@ -106,10 +110,16 @@
 							<Empty.Media variant="icon"><PenLine aria-hidden="true" /></Empty.Media>
 							<Empty.Title><h2>Место для вашего голоса</h2></Empty.Title>
 							<Empty.Description
-								>Этот же аккаунт подойдёт для публикаций. Профиль автора и уровни подписки добавим
-								на следующем этапе.</Empty.Description
+								>Оформите публичную страницу и создайте уровни подписки. Ваш профиль появится в
+								каталоге авторов.</Empty.Description
 							>
 						</Empty.Header>
+						<Empty.Content
+							><Button href="/account/profile">Оформить профиль</Button><Button
+								href="/account/tiers"
+								variant="outline">Уровни подписки</Button
+							></Empty.Content
+						>
 					</Empty.Root>
 				</Tabs.Content>
 			</Tabs.Root>

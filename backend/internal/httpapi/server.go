@@ -16,6 +16,7 @@ import (
 	"etheyl.local/backend/internal/accounts"
 	"etheyl.local/backend/internal/auth"
 	"etheyl.local/backend/internal/config"
+	"etheyl.local/backend/internal/media"
 	"etheyl.local/backend/internal/observability"
 	"etheyl.local/backend/internal/store"
 	"github.com/jackc/pgx/v5"
@@ -29,6 +30,7 @@ type Server struct {
 	cfg      config.Config
 	log      *slog.Logger
 	accounts *accounts.Service
+	images   media.Storage
 }
 
 type apiError struct {
@@ -61,11 +63,31 @@ func New(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (*Server, e
 	if err != nil {
 		return nil, err
 	}
-	return &Server{pool: pool, q: store.New(pool), cfg: cfg, log: logger, accounts: service}, nil
+	s := &Server{pool: pool, q: store.New(pool), cfg: cfg, log: logger, accounts: service}
+	if cfg.S3Endpoint != "" {
+		s.images, err = media.New(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3Secure)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return s, nil
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/me/profile", s.endpoint(s.ownProfile))
+	mux.HandleFunc("PUT /api/v1/me/profile", s.endpoint(s.saveProfile))
+	mux.HandleFunc("PUT /api/v1/me/profile/images/{kind}", s.endpoint(s.uploadImage))
+	mux.HandleFunc("DELETE /api/v1/me/profile/images/{kind}", s.endpoint(s.removeImage))
+	mux.HandleFunc("GET /api/v1/authors", s.endpoint(s.catalog))
+	mux.HandleFunc("GET /api/v1/authors/{nickname}", s.endpoint(s.author))
+	mux.HandleFunc("GET /api/v1/authors/{nickname}/images/{kind}", s.endpoint(s.publicImage))
+	mux.HandleFunc("GET /api/v1/me/tiers", s.endpoint(s.ownTiers))
+	mux.HandleFunc("POST /api/v1/me/tiers", s.endpoint(s.createTier))
+	mux.HandleFunc("PUT /api/v1/me/tiers/order", s.endpoint(s.reorderTiers))
+	mux.HandleFunc("PUT /api/v1/me/tiers/{id}", s.endpoint(s.updateTier))
+	mux.HandleFunc("POST /api/v1/me/tiers/{id}/archive", s.endpoint(s.archiveTier))
+	mux.HandleFunc("DELETE /api/v1/me/tiers/{id}", s.endpoint(s.deleteTier))
 	mux.HandleFunc("GET /api/v1/health", s.endpoint(s.health))
 	mux.HandleFunc("GET /api/v1/auth/csrf", s.endpoint(s.csrf))
 	mux.HandleFunc("GET /api/v1/me", s.endpoint(s.me))
@@ -124,7 +146,15 @@ func (s *Server) endpoint(fn endpoint) http.HandlerFunc {
 				s.writeError(w, err)
 				return
 			}
-			r.Body = http.MaxBytesReader(w, r.Body, 16*1024)
+			limit := int64(16 * 1024)
+			if r.URL.Path == "/api/v1/me/profile" || strings.HasPrefix(r.URL.Path, "/api/v1/me/tiers") {
+				// 5000 Unicode characters may occupy up to 60 KB in escaped JSON.
+				limit = 64 * 1024
+			}
+			if r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/v1/me/profile/images/") {
+				limit = media.MaxBytes
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}
 		if err := fn(w, r); err != nil {
 			s.writeError(w, err)

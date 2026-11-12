@@ -15,6 +15,14 @@ type ActionToken struct {
 	ExpiresAt pgtype.Timestamptz
 }
 
+type CreatorProfile struct {
+	UserID      int64
+	DisplayName string
+	Description string
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+}
+
 type MailOutbox struct {
 	ID          int64
 	Recipient   string
@@ -29,6 +37,18 @@ type MailOutbox struct {
 	FailureCode string
 }
 
+type ProfileImage struct {
+	UserID      int64
+	Kind        string
+	ObjectKey   string
+	ContentType string
+	SizeBytes   int64
+	Width       int32
+	Height      int32
+	Sha256      string
+	UpdatedAt   pgtype.Timestamptz
+}
+
 type RateLimit struct {
 	Key       string
 	Hits      int32
@@ -40,6 +60,18 @@ type Session struct {
 	UserID    int64
 	ExpiresAt pgtype.Timestamptz
 	CreatedAt pgtype.Timestamptz
+}
+
+type SubscriptionTier struct {
+	ID           int64
+	AuthorID     int64
+	Name         string
+	Description  string
+	PriceKopecks int64
+	Position     int32
+	UsedAt       pgtype.Timestamptz
+	ArchivedAt   pgtype.Timestamptz
+	CreatedAt    pgtype.Timestamptz
 }
 
 type User struct {

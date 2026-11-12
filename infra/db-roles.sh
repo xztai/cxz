@@ -29,6 +29,8 @@ else
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM etheyl_api, etheyl_worker;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM etheyl_api, etheyl_worker;
 GRANT SELECT, INSERT, UPDATE, DELETE ON users, sessions, action_tokens, rate_limits TO etheyl_api;
+GRANT SELECT, INSERT, UPDATE, DELETE ON creator_profiles, profile_images, subscription_tiers TO etheyl_api;
+GRANT USAGE ON SEQUENCE subscription_tiers_id_seq TO etheyl_api;
 GRANT INSERT ON mail_outbox TO etheyl_api;
 GRANT USAGE ON SEQUENCE users_id_seq, mail_outbox_id_seq TO etheyl_api;
 GRANT SELECT, UPDATE, DELETE ON mail_outbox TO etheyl_worker;

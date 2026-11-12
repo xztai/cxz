@@ -157,8 +157,12 @@ func TestIntegrationConcurrentMigrators(t *testing.T) {
 		})
 	}
 	wg.Wait()
+	files, err := migrations.Files.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
 	var count int
-	if err := h.pool.QueryRow(t.Context(), "SELECT count(*) FROM goose_db_version WHERE is_applied").Scan(&count); err != nil || count != 4 {
+	if err := h.pool.QueryRow(t.Context(), "SELECT count(*) FROM goose_db_version WHERE is_applied").Scan(&count); err != nil || count != len(files)+1 {
 		t.Fatal("unexpected migration history", count, err)
 	}
 }

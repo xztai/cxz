@@ -1,6 +1,12 @@
 \set ON_ERROR_STOP on
 BEGIN;
 SET LOCAL ROLE etheyl_api;
+SELECT user_id, display_name FROM creator_profiles LIMIT 0;
+SELECT user_id, object_key FROM profile_images LIMIT 0;
+SELECT id, author_id, price_kopecks FROM subscription_tiers LIMIT 0;
+UPDATE creator_profiles SET updated_at=now() WHERE false;
+UPDATE profile_images SET updated_at=now() WHERE false;
+UPDATE subscription_tiers SET name=name WHERE false;
 DO $$
 BEGIN
  BEGIN
@@ -26,6 +32,11 @@ BEGIN
  BEGIN
   PERFORM password_hash FROM users LIMIT 1;
   RAISE EXCEPTION 'worker unexpectedly can read password hashes';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ BEGIN
+  PERFORM object_key FROM profile_images LIMIT 1;
+  RAISE EXCEPTION 'worker unexpectedly can read media keys';
  EXCEPTION WHEN insufficient_privilege THEN NULL;
  END;
  BEGIN

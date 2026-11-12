@@ -198,10 +198,198 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ownProfile"];
+        /** @description Creates public profile and atomically updates the account nickname. Owner comes from the session. */
+        put: operations["saveProfile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/profile/images/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "avatar" | "cover";
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Raw image bytes, at most 5 MiB and 16 million pixels, each side at most 8192. Actual type must match Content-Type. Re-encoded before storage. */
+        put: operations["uploadProfileImage"];
+        post?: never;
+        delete: operations["removeProfileImage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/authors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAuthors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/authors/{nickname}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["publicAuthor"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/authors/{nickname}/images/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["publicProfileImage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/tiers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ownTiers"];
+        put?: never;
+        /** @description New tier is always placed above all existing tiers, including archived tiers. Maximum 50 active tiers. */
+        post: operations["createTier"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/tiers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["updateTier"];
+        post?: never;
+        /** @description Unused tiers are deleted; used tiers are archived and retain their position and access hierarchy. */
+        delete: operations["deleteTier"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/tiers/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["archiveTier"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/tiers/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Complete list of active IDs, highest first. Positions of used tiers are immutable; archived positions are reserved. */
+        put: operations["reorderTiers"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ProfileInput: {
+            nickname: string;
+            displayName: string;
+            description: string;
+        };
+        Profile: {
+            id: string;
+            nickname: string;
+            displayName: string;
+            description: string;
+            avatar: components["schemas"]["ImageMetadata"] | null;
+            cover: components["schemas"]["ImageMetadata"] | null;
+        };
+        ImageMetadata: {
+            url: string;
+            contentType: string;
+            sizeBytes: number;
+            width: number;
+            height: number;
+        };
+        TierInput: {
+            name: string;
+            description: string;
+            /** @description Price in kopecks, RUB */
+            priceKopecks: number;
+        };
+        Tier: {
+            id: string;
+            name: string;
+            description: string;
+            priceKopecks: number;
+            position: number;
+            used: boolean;
+            archived: boolean;
+        };
         User: {
             id: string;
             /** Format: email */
@@ -238,6 +426,39 @@ export interface components {
         };
     };
     responses: {
+        /** @description Saved public profile */
+        Profile: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    profile: components["schemas"]["Profile"];
+                };
+            };
+        };
+        /** @description Saved tier */
+        Tier: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    tier: components["schemas"]["Tier"];
+                };
+            };
+        };
+        /** @description Own tiers including archive, highest first */
+        Tiers: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    tiers: components["schemas"]["Tier"][];
+                };
+            };
+        };
         /** @description Success; password recovery and resend return the same response for existing and missing accounts */
         Message: {
             headers: {
@@ -521,6 +742,258 @@ export interface operations {
         responses: {
             200: components["responses"]["Message"];
             422: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    ownProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Own profile; null until first save */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        profile: components["schemas"]["Profile"] | null;
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    saveProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileInput"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Profile"];
+            default: components["responses"]["Error"];
+        };
+    };
+    uploadProfileImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "avatar" | "cover";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/png": string;
+                "image/jpeg": string;
+                "image/webp": string;
+            };
+        };
+        responses: {
+            200: components["responses"]["Profile"];
+            default: components["responses"]["Error"];
+        };
+    };
+    removeProfileImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "avatar" | "cover";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Profile"];
+            default: components["responses"]["Error"];
+        };
+    };
+    listAuthors: {
+        parameters: {
+            query?: {
+                q?: string;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Up to 24 public authors; literal case-insensitive search across nickname, name and description */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        authors: components["schemas"]["Profile"][];
+                        hasMore: boolean;
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    publicAuthor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nickname: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public profile and active tiers ordered highest first; no email or storage keys */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        profile: components["schemas"]["Profile"];
+                        tiers: components["schemas"]["Tier"][];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    publicProfileImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                nickname: string;
+                kind: "avatar" | "cover";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Validated image streamed from private storage */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
+                    "image/jpeg": string;
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    ownTiers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Tiers"];
+            default: components["responses"]["Error"];
+        };
+    };
+    createTier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TierInput"];
+            };
+        };
+        responses: {
+            201: components["responses"]["Tier"];
+            default: components["responses"]["Error"];
+        };
+    };
+    updateTier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TierInput"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Tier"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteTier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Message"];
+            default: components["responses"]["Error"];
+        };
+    };
+    archiveTier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Message"];
+            default: components["responses"]["Error"];
+        };
+    };
+    reorderTiers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    ids: string[];
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Tiers"];
             default: components["responses"]["Error"];
         };
     };

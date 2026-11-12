@@ -21,7 +21,7 @@
 		<div class="header-content page-inset">
 			<Logo />
 			<nav aria-label="Главная навигация" class="header-nav">
-				{#if !isAuth}<a href="/#about" class="nav-about">Для кого</a><a
+				{#if !isAuth}<a href="/authors">Авторы</a><a href="/#about" class="nav-about">Для кого</a><a
 						href="/#join"
 						class="nav-about">Как присоединиться</a
 					>{/if}
