@@ -14,13 +14,13 @@
 	let { mode }: { mode: 'verify' | 'reset' } = $props();
 	const copy = {
 		verify: {
-			title: 'Подтвердите email.',
-			description: 'Подтвердите адрес, чтобы войти в свой аккаунт.',
+			title: 'Это ваша почта?',
+			description: 'Подтвердите адрес ниже. После этого откроется ваш аккаунт.',
 			submit: 'Подтвердить email'
 		},
 		reset: {
-			title: 'Новый пароль.',
-			description: 'Придумайте надёжный пароль. После сохранения войдите заново.',
+			title: 'Новый пароль — и вы дома.',
+			description: 'Выберите пароль, который ещё не использовали для этого аккаунта.',
 			submit: 'Сохранить пароль'
 		}
 	};
@@ -100,7 +100,7 @@
 	><title>{text.title} — etheyl</title><meta name="robots" content="noindex" /></svelte:head
 >
 <AuthCard
-	title={done ? 'Всё готово.' : text.title}
+	title={done ? 'Доступ восстановлен.' : text.title}
 	description={done
 		? 'Пароль изменён. Все предыдущие сеансы завершены.'
 		: checkingToken

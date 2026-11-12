@@ -1,28 +1,21 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import * as Card from '#lib/components/ui/card/index.js';
-
 	let {
 		title,
 		description,
 		children,
 		footer,
 		heading
-	}: {
-		title: string;
-		description: string;
-		children: Snippet;
-		footer: Snippet;
-		heading?: Snippet;
-	} = $props();
+	}: { title: string; description: string; children: Snippet; footer: Snippet; heading?: Snippet } =
+		$props();
 </script>
 
-<Card.Root class="auth-card w-full">
-	<Card.Header>
-		<Card.Title><h1>{title}</h1></Card.Title>
-		<Card.Description>{description}</Card.Description>
+<div class="auth-card">
+	<header class="auth-card-heading">
+		<h1>{title}</h1>
+		<p>{description}</p>
 		{@render heading?.()}
-	</Card.Header>
-	<Card.Content>{@render children()}</Card.Content>
-	<Card.Footer class="flex-col gap-3">{@render footer()}</Card.Footer>
-</Card.Root>
+	</header>
+	<div class="auth-card-content">{@render children()}</div>
+	<footer class="auth-card-footer">{@render footer()}</footer>
+</div>

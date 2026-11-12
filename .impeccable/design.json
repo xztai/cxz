@@ -1,0 +1,438 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-12T14:12:31.905564Z",
+  "title": "Design System: etheyl",
+  "extensions": {
+    "colorMeta": {
+      "blue": {
+        "role": "primary",
+        "displayName": "Cobalt",
+        "tonalRamp": [
+          "oklch(15% 0.0595 266.34)",
+          "oklch(27% 0.1191 266.34)",
+          "oklch(39% 0.1786 266.34)",
+          "oklch(51% 0.2263 266.34)",
+          "oklch(63% 0.2382 266.34)",
+          "oklch(75% 0.1906 266.34)",
+          "oklch(87% 0.1072 266.34)",
+          "oklch(95% 0.0357 266.34)"
+        ]
+      },
+      "blue-deep": {
+        "role": "primary",
+        "displayName": "Deep Cobalt",
+        "tonalRamp": [
+          "oklch(15% 0.0516 265.82)",
+          "oklch(27% 0.1032 265.82)",
+          "oklch(39% 0.1549 265.82)",
+          "oklch(51% 0.1962 265.82)",
+          "oklch(63% 0.2065 265.82)",
+          "oklch(75% 0.1652 265.82)",
+          "oklch(87% 0.0929 265.82)",
+          "oklch(95% 0.0310 265.82)"
+        ]
+      },
+      "blue-ink": {
+        "role": "primary",
+        "displayName": "Cobalt Paper Ink",
+        "tonalRamp": [
+          "oklch(15% 0.0097 274.48)",
+          "oklch(27% 0.0194 274.48)",
+          "oklch(39% 0.0292 274.48)",
+          "oklch(51% 0.0369 274.48)",
+          "oklch(63% 0.0389 274.48)",
+          "oklch(75% 0.0311 274.48)",
+          "oklch(87% 0.0175 274.48)",
+          "oklch(95% 0.0058 274.48)"
+        ]
+      },
+      "lemon": {
+        "role": "secondary",
+        "displayName": "Pale Lemon",
+        "tonalRamp": [
+          "oklch(15% 0.0232 116.51)",
+          "oklch(27% 0.0465 116.51)",
+          "oklch(39% 0.0697 116.51)",
+          "oklch(51% 0.0883 116.51)",
+          "oklch(63% 0.0929 116.51)",
+          "oklch(75% 0.0744 116.51)",
+          "oklch(87% 0.0418 116.51)",
+          "oklch(95% 0.0139 116.51)"
+        ]
+      },
+      "orange": {
+        "role": "tertiary",
+        "displayName": "Peach",
+        "tonalRamp": [
+          "oklch(15% 0.0270 44.12)",
+          "oklch(27% 0.0539 44.12)",
+          "oklch(39% 0.0809 44.12)",
+          "oklch(51% 0.1024 44.12)",
+          "oklch(63% 0.1078 44.12)",
+          "oklch(75% 0.0862 44.12)",
+          "oklch(87% 0.0485 44.12)",
+          "oklch(95% 0.0162 44.12)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Green Black Ink",
+        "tonalRamp": [
+          "oklch(15% 0.0033 140.45)",
+          "oklch(27% 0.0066 140.45)",
+          "oklch(39% 0.0099 140.45)",
+          "oklch(51% 0.0125 140.45)",
+          "oklch(63% 0.0132 140.45)",
+          "oklch(75% 0.0106 140.45)",
+          "oklch(87% 0.0059 140.45)",
+          "oklch(95% 0.0020 140.45)"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Cool Paper",
+        "tonalRamp": [
+          "oklch(15% 0.0013 117.92)",
+          "oklch(27% 0.0027 117.92)",
+          "oklch(39% 0.0040 117.92)",
+          "oklch(51% 0.0051 117.92)",
+          "oklch(63% 0.0054 117.92)",
+          "oklch(75% 0.0043 117.92)",
+          "oklch(87% 0.0024 117.92)",
+          "oklch(95% 0.0008 117.92)"
+        ]
+      },
+      "card": {
+        "role": "neutral",
+        "displayName": "White",
+        "tonalRamp": [
+          "oklch(15% 0.0000 89.88)",
+          "oklch(27% 0.0000 89.88)",
+          "oklch(39% 0.0000 89.88)",
+          "oklch(51% 0.0000 89.88)",
+          "oklch(63% 0.0000 89.88)",
+          "oklch(75% 0.0000 89.88)",
+          "oklch(87% 0.0000 89.88)",
+          "oklch(95% 0.0000 89.88)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted Paper",
+        "tonalRamp": [
+          "oklch(15% 0.0024 119.58)",
+          "oklch(27% 0.0048 119.58)",
+          "oklch(39% 0.0071 119.58)",
+          "oklch(51% 0.0091 119.58)",
+          "oklch(63% 0.0095 119.58)",
+          "oklch(75% 0.0076 119.58)",
+          "oklch(87% 0.0043 119.58)",
+          "oklch(95% 0.0014 119.58)"
+        ]
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "tonalRamp": [
+          "oklch(15% 0.0033 128.76)",
+          "oklch(27% 0.0067 128.76)",
+          "oklch(39% 0.0100 128.76)",
+          "oklch(51% 0.0127 128.76)",
+          "oklch(63% 0.0134 128.76)",
+          "oklch(75% 0.0107 128.76)",
+          "oklch(87% 0.0060 128.76)",
+          "oklch(95% 0.0020 128.76)"
+        ]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Paper Rule",
+        "tonalRamp": [
+          "oklch(15% 0.0039 123.07)",
+          "oklch(27% 0.0077 123.07)",
+          "oklch(39% 0.0116 123.07)",
+          "oklch(51% 0.0147 123.07)",
+          "oklch(63% 0.0155 123.07)",
+          "oklch(75% 0.0124 123.07)",
+          "oklch(87% 0.0070 123.07)",
+          "oklch(95% 0.0023 123.07)"
+        ]
+      },
+      "input": {
+        "role": "neutral",
+        "displayName": "Field Rule",
+        "tonalRamp": [
+          "oklch(15% 0.0055 127.45)",
+          "oklch(27% 0.0110 127.45)",
+          "oklch(39% 0.0165 127.45)",
+          "oklch(51% 0.0209 127.45)",
+          "oklch(63% 0.0220 127.45)",
+          "oklch(75% 0.0176 127.45)",
+          "oklch(87% 0.0099 127.45)",
+          "oklch(95% 0.0033 127.45)"
+        ]
+      },
+      "destructive": {
+        "role": "semantic",
+        "displayName": "Error Red",
+        "tonalRamp": [
+          "oklch(15% 0.0421 27.37)",
+          "oklch(27% 0.0843 27.37)",
+          "oklch(39% 0.1264 27.37)",
+          "oklch(51% 0.1601 27.37)",
+          "oklch(63% 0.1686 27.37)",
+          "oklch(75% 0.1348 27.37)",
+          "oklch(87% 0.0759 27.37)",
+          "oklch(95% 0.0253 27.37)"
+        ]
+      },
+      "audience-author": {
+        "role": "neutral",
+        "displayName": "Author Paper",
+        "tonalRamp": [
+          "oklch(15% 0.0048 119.76)",
+          "oklch(27% 0.0095 119.76)",
+          "oklch(39% 0.0143 119.76)",
+          "oklch(51% 0.0181 119.76)",
+          "oklch(63% 0.0191 119.76)",
+          "oklch(75% 0.0152 119.76)",
+          "oklch(87% 0.0086 119.76)",
+          "oklch(95% 0.0029 119.76)"
+        ]
+      },
+      "audience-supporter": {
+        "role": "neutral",
+        "displayName": "Supporter Paper",
+        "tonalRamp": [
+          "oklch(15% 0.0056 272.06)",
+          "oklch(27% 0.0111 272.06)",
+          "oklch(39% 0.0167 272.06)",
+          "oklch(51% 0.0211 272.06)",
+          "oklch(63% 0.0222 272.06)",
+          "oklch(75% 0.0178 272.06)",
+          "oklch(87% 0.0100 272.06)",
+          "oklch(95% 0.0033 272.06)"
+        ]
+      },
+      "status": {
+        "role": "neutral",
+        "displayName": "Status Paper",
+        "tonalRamp": [
+          "oklch(15% 0.0027 118.02)",
+          "oklch(27% 0.0054 118.02)",
+          "oklch(39% 0.0081 118.02)",
+          "oklch(51% 0.0102 118.02)",
+          "oklch(63% 0.0108 118.02)",
+          "oklch(75% 0.0086 118.02)",
+          "oklch(87% 0.0048 118.02)",
+          "oklch(95% 0.0016 118.02)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Editorial Display",
+        "purpose": "Large expressive headlines; responsive overrides are recorded in DESIGN.md."
+      },
+      "headline": {
+        "displayName": "Section Headline",
+        "purpose": "Major editorial section headings."
+      },
+      "auth-title": {
+        "displayName": "Account Title",
+        "purpose": "Short titles introducing an account task."
+      },
+      "title": {
+        "displayName": "Content Title",
+        "purpose": "Golos Text titles within quiet audience surfaces."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Reading baseline and readable account inputs."
+      },
+      "body-small": {
+        "displayName": "Compact Body",
+        "purpose": "Supporting editorial explanations."
+      },
+      "action": {
+        "displayName": "Action",
+        "purpose": "Medium-weight buttons and practical navigation."
+      },
+      "label": {
+        "displayName": "Field Label",
+        "purpose": "Visible labels above account inputs."
+      },
+      "brand": {
+        "displayName": "Brand",
+        "purpose": "The etheyl wordmark accompanying the eight-ray mark."
+      }
+    },
+    "shadows": [
+      {
+        "name": "printed-piece",
+        "value": "0 14px 32px #0b227930",
+        "purpose": "Soft shared depth for overlapping journal material."
+      },
+      {
+        "name": "field-focus",
+        "value": "0 0 0 1px color-mix(in oklab, var(--ring) 50%, transparent)",
+        "purpose": "One-pixel cobalt field focus ring."
+      },
+      {
+        "name": "field-invalid",
+        "value": "0 0 0 1px color-mix(in oklab, var(--destructive) 20%, transparent)",
+        "purpose": "One-pixel invalid field ring paired with explicit error text."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Journal assembly and page-fanning motion."
+      },
+      {
+        "name": "control-transition",
+        "value": "200ms",
+        "purpose": "Button color/border changes and ruled action arrows."
+      },
+      {
+        "name": "journal-fan",
+        "value": "550ms",
+        "purpose": "Small page rotations and translations on hover-capable devices."
+      },
+      {
+        "name": "journal-assembly",
+        "value": "1.1s",
+        "purpose": "Visible-by-default desktop assembly at a minimum width of 1100px when reduced motion is not requested."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation: none !important; transition: none !important; scroll-behavior: auto",
+        "purpose": "Static equivalent when reduced motion is requested."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-desktop",
+        "value": "1150px"
+      },
+      {
+        "name": "single-column-account",
+        "value": "800px"
+      },
+      {
+        "name": "phone",
+        "value": "540px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Cobalt action on a light surface.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">Создать аккаунт<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M5 12h14m-6-6 6 6-6 6\"/></svg></button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 16px;border:1px solid transparent;border-radius:var(--control-radius,8px);font-family:var(--font-body,'Golos Text',sans-serif);font-size:14px;font-weight:500;line-height:20px;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background-color 200ms,color 200ms,border-color 200ms;background:var(--primary,#2448e5);color:var(--primary-foreground,#ffffff);}.ds-btn-primary:hover{background:var(--foreground,#20251f);}.ds-btn-primary:focus-visible{border-color:var(--ring,#2448e5);outline:none;box-shadow:0 0 0 1px var(--ring,#2448e5);}.ds-btn-primary:active{transform:translateY(1px)}.ds-btn-primary:disabled{opacity:.5;pointer-events:none}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Pale Lemon action for cobalt editorial regions.",
+      "html": "<button class=\"ds-btn-secondary\" type=\"button\">Присоединиться<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M5 12h14m-6-6 6 6-6 6\"/></svg></button>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 16px;border:1px solid transparent;border-radius:var(--control-radius,8px);font-family:var(--font-body,'Golos Text',sans-serif);font-size:14px;font-weight:500;line-height:20px;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background-color 200ms,color 200ms,border-color 200ms;background:var(--secondary,#edfab2);color:var(--secondary-foreground,#20251f);}.ds-btn-secondary:hover{background:color-mix(in oklch,var(--secondary,#edfab2),var(--foreground,#20251f) 5%);}.ds-btn-secondary:focus-visible{border-color:var(--ring,#2448e5);outline:none;box-shadow:0 0 0 1px var(--ring,#2448e5);}.ds-btn-secondary:active{transform:translateY(1px)}.ds-btn-secondary:disabled{opacity:.5;pointer-events:none}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Quiet secondary account action.",
+      "html": "<button class=\"ds-btn-outline\" type=\"button\">Отправить письмо ещё раз</button>",
+      "css": ".ds-btn-outline{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 16px;border:1px solid transparent;border-radius:var(--control-radius,8px);font-family:var(--font-body,'Golos Text',sans-serif);font-size:14px;font-weight:500;line-height:20px;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background-color 200ms,color 200ms,border-color 200ms;background:var(--background,#f8f9f5);color:var(--foreground,#20251f);border-color:var(--border,#d5d9ce);}.ds-btn-outline:hover{background:var(--muted,#eceee7);}.ds-btn-outline:focus-visible{border-color:var(--ring,#2448e5);outline:none;box-shadow:0 0 0 1px var(--ring,#2448e5);}.ds-btn-outline:active{transform:translateY(1px)}.ds-btn-outline:disabled{opacity:.5;pointer-events:none}"
+    },
+    {
+      "name": "Link Button",
+      "kind": "button",
+      "refersTo": "button-link",
+      "description": "Text action used for returning to sign-in.",
+      "html": "<button class=\"ds-btn-link\" type=\"button\">Вернуться ко входу</button>",
+      "css": ".ds-btn-link{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:44px;padding:0 16px;border:1px solid transparent;border-radius:var(--control-radius,8px);font-family:var(--font-body,'Golos Text',sans-serif);font-size:14px;font-weight:500;line-height:20px;text-decoration:none;white-space:nowrap;cursor:pointer;transition:background-color 200ms,color 200ms,border-color 200ms;background:transparent;color:var(--primary,#2448e5);text-underline-offset:4px;}.ds-btn-link:hover{text-decoration:underline;}.ds-btn-link:focus-visible{border-color:var(--ring,#2448e5);outline:none;box-shadow:0 0 0 1px var(--ring,#2448e5);}.ds-btn-link:active{transform:translateY(1px)}.ds-btn-link:disabled{opacity:.5;pointer-events:none}"
+    },
+    {
+      "name": "Account Field",
+      "kind": "input",
+      "refersTo": "auth-input",
+      "description": "Visible label, white field, and nearby guidance for account tasks.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-field-label\" for=\"ds-email\">Email</label><input class=\"ds-field-input\" id=\"ds-email\" type=\"email\" placeholder=\"you@example.com\" autocomplete=\"email\"/><p class=\"ds-field-help\">Почта для доступа к аккаунту.</p></div>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:8px;max-width:360px;font-family:var(--font-body,'Golos Text',sans-serif);color:var(--ink,#20251f)}.ds-field-label{font-size:13px;font-weight:500;line-height:1.375}.ds-field-input{height:48px;width:100%;min-width:0;padding:12px 14px;border:1px solid var(--input,#bec5b6);border-radius:8px;background:var(--card,#ffffff);color:var(--ink,#20251f);font-family:inherit;font-size:16px;caret-color:var(--blue,#2448e5);transition:color 150ms,border-color 150ms}.ds-field-input::placeholder{color:var(--muted-foreground,#62665e)}.ds-field-input:focus-visible{outline:none;border-color:var(--ring,#2448e5);box-shadow:0 0 0 1px color-mix(in oklab,var(--ring,#2448e5) 50%,transparent)}.ds-field-input[aria-invalid=true]{border-color:var(--destructive,#b02d28);box-shadow:0 0 0 1px color-mix(in oklab,var(--destructive,#b02d28) 20%,transparent)}.ds-field-input:disabled{opacity:.5;pointer-events:none}.ds-field-help{margin:0;font-size:11px;line-height:1.6;color:var(--muted-foreground,#62665e)}"
+    },
+    {
+      "name": "Account Navigation",
+      "kind": "nav",
+      "refersTo": "auth-navigation",
+      "description": "An active cobalt underline identifies the current account entry route.",
+      "html": "<nav class=\"ds-auth-nav\" aria-label=\"Доступ к аккаунту\"><a href=\"#login\">Вход</a><a href=\"#register\" aria-current=\"page\">Регистрация</a></nav>",
+      "css": ".ds-auth-nav{display:flex;gap:28px;border-bottom:1px solid var(--border,#d5d9ce);font-family:var(--font-body,'Golos Text',sans-serif)}.ds-auth-nav a{padding-bottom:12px;color:var(--muted-foreground,#62665e);font-size:14px;line-height:1.6;text-decoration:none}.ds-auth-nav a[aria-current]{border-bottom:2px solid var(--blue,#2448e5);color:var(--blue,#2448e5);margin-bottom:-1px}.ds-auth-nav a:focus-visible{outline:2px solid currentColor;outline-offset:5px}"
+    },
+    {
+      "name": "Audience Card",
+      "kind": "card",
+      "refersTo": "audience-card-author",
+      "description": "A flat tinted content surface with a geometric mark and ruled action.",
+      "html": "<article class=\"ds-audience\"><svg class=\"ds-audience-mark\" viewBox=\"0 0 100 100\" aria-hidden=\"true\"><path d=\"M50 5v90M5 50h90M18 18l64 64M18 82l64-64\"/></svg><div><h3>У вас есть своё дело.</h3><p>Тексты, музыка, рисунки, исследования — и люди, которым это интересно.</p></div><a href=\"#register\">Я создаю<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M5 12h14m-6-6 6 6-6 6\"/></svg></a></article>",
+      "css": ".ds-audience{display:grid;grid-template-columns:90px 1fr;gap:28px;padding:34px;border-radius:12px;background:#e9eddf;color:var(--ink,#20251f);font-family:var(--font-body,'Golos Text',sans-serif);max-width:600px}.ds-audience-mark{width:76px;height:76px;stroke:var(--blue,#2448e5);fill:none;stroke-width:2}.ds-audience h3{font-size:24px;line-height:1.3;letter-spacing:-.025em;font-weight:500;margin:0 0 16px}.ds-audience p{font-size:14px;line-height:1.75;color:#4f5949;margin:0}.ds-audience a{display:flex;justify-content:space-between;align-items:center;grid-column:2;padding:10px 0;margin-top:8px;color:var(--blue,#2448e5);font-size:14px;text-decoration:none;border-bottom:1px solid #2448e54d}.ds-audience a svg{transition:translate 200ms}.ds-audience a:hover svg{translate:4px}.ds-audience a:focus-visible{outline:2px solid currentColor;outline-offset:5px}@media(max-width:540px){.ds-audience{grid-template-columns:48px 1fr;gap:20px;padding:25px}.ds-audience-mark{width:43px;height:43px}.ds-audience h3{font-size:20px}}"
+    },
+    {
+      "name": "Journal Piece",
+      "kind": "custom",
+      "refersTo": "journal-piece",
+      "description": "A square printed creative sketch; shadow and hover rotation belong to this material.",
+      "html": "<article class=\"ds-journal\"><span>записки на полях</span><h2>А что,<br/>если?</h2><p>Всё интересное<br/>начинается<br/>с этого вопроса.</p><span class=\"ds-journal-foot\">просто продолжай<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" width=\"16\" height=\"16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M5 12h14m-6-6 6 6-6 6\"/></svg></span></article>",
+      "css": ".ds-journal{width:197px;height:244px;padding:19px;background:var(--lemon,#edfab2);color:var(--ink,#20251f);font-family:var(--font-body,'Golos Text',sans-serif);box-shadow:0 14px 32px #0b227930;transform:rotate(7deg);transition:transform 550ms var(--ease-out,cubic-bezier(.16,1,.3,1))}.ds-journal>span:first-child{font-size:8px}.ds-journal h2{font-family:var(--font-display,'Unbounded',sans-serif);font-size:35px;line-height:1.08;font-weight:600;letter-spacing:-.04em;margin:18px 0 0}.ds-journal p{font-size:10px;line-height:1.45;margin:14px 0 0}.ds-journal-foot{display:flex;justify-content:space-between;align-items:center;font-size:8px;margin-top:21px}@media(hover:hover){.ds-journal:hover{transform:translate(6px,2px) rotate(10deg)}}@media(prefers-reduced-motion:reduce){.ds-journal{transition:none}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Independent Cultural Journal",
+    "overview": "etheyl speaks through the visual language of an independent cultural journal: expansive cobalt fields, pale yellow emphasis, generous paper margins, and confident Cyrillic headlines. Unbounded gives ideas a distinct public voice; Golos Text keeps explanations, navigation, and account tasks direct and readable. The eight-ray mark and fine orbital drawings connect the identity across surfaces.\n\nEditorial compositions can be expressive and layered. Account tasks become quieter: a white form, visible labels, and a single cobalt submit action. Both expressions belong to the same world through their typography, palette, and carefully controlled geometry. Russian remains the interface language, and etheyl remains the brand name.",
+    "keyCharacteristics": [
+      "Broad cobalt and paper regions with pale yellow emphasis.",
+      "Unbounded headlines paired with practical Golos Text.",
+      "Flat functional surfaces and selectively layered printed material.",
+      "Fine geometric marks, soft control corners, and square journal pieces.",
+      "Responsive simplification that gives account tasks the available space."
+    ],
+    "rules": [
+      {
+        "name": "The Cobalt and Lemon Rule",
+        "body": "Use cobalt as an expressive field or a functional action; use Pale Lemon to hold emphasis against that field. On a white account surface, the principal action is cobalt.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Voices Rule",
+        "body": "Use Unbounded for the brand and editorial headings; use Golos Text for controls, field labels, explanatory copy, and navigation.",
+        "section": "typography"
+      },
+      {
+        "name": "The Printed Depth Rule",
+        "body": "Reserve the shared soft shadow and rotated overlap for authored journal material; establish functional hierarchy with flat surfaces and borders.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do pair cobalt regions with Pale Lemon emphasis and use cobalt actions on white account surfaces.",
+      "Do use Unbounded for editorial headings and Golos Text for practical reading and controls.",
+      "Do keep visible field labels, readable input text, explicit errors, and visible keyboard focus.",
+      "Do reserve rotated overlap and the shared soft shadow for authored journal material.",
+      "Do simplify account layouts into one focused column when the companion region no longer fits.",
+      "Do identify illustrative project artwork as sketches and distinguish available account actions from planned product capabilities."
+    ],
+    "donts": [
+      "Don't carry the replaced visual identity into new surfaces; retain the etheyl name within this cultural-journal world.",
+      "Don't turn every content container into a raised or rotated journal piece.",
+      "Don't spread the display face into field labels and dense practical copy.",
+      "Don't hide core account actions behind the decorative editorial region on small screens.",
+      "Don't make entrance motion a prerequisite for seeing content or completing a task."
+    ]
+  }
+}

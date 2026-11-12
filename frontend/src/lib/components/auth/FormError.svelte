@@ -6,7 +6,7 @@
 
 {#if error}
 	<Alert.Root variant="destructive" {id} role="alert">
-		<Alert.Title>Не получилось</Alert.Title>
+		<Alert.Title>Попробуем ещё раз</Alert.Title>
 		<Alert.Description>{error}</Alert.Description>
 	</Alert.Root>
 {/if}

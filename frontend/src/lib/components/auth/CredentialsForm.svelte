@@ -15,18 +15,19 @@
 	let { mode }: { mode: 'login' | 'register' | 'forgot' } = $props();
 	const copy = {
 		login: {
-			title: 'С возвращением.',
-			description: 'Ваши авторы и истории ждут вас.',
+			title: 'Продолжим?',
+			description: 'Войдите, чтобы вернуться в свой аккаунт.',
 			submit: 'Войти'
 		},
 		register: {
-			title: 'Найдите своих.',
-			description: 'Создайте аккаунт, чтобы быть ближе к творчеству.',
+			title: 'Ваше начало здесь.',
+			description: 'Один аккаунт для ваших идей и любимых авторов.',
 			submit: 'Создать аккаунт'
 		},
 		forgot: {
-			title: 'Начнём заново.',
-			description: 'Укажите email. Мы пришлём ссылку для восстановления пароля.',
+			title: 'Вернём вам доступ.',
+			description:
+				'Введите почту от аккаунта. Отправим ссылку, по которой можно задать новый пароль.',
 			submit: 'Отправить ссылку'
 		}
 	};
@@ -121,7 +122,7 @@
 				<Alert.Title>{mailSentAgain ? 'Новое письмо отправлено' : 'Проверьте входящие'}</Alert.Title
 				>
 				<Alert.Description
-					>Откройте ссылку из письма. Если оно не пришло, проверьте адрес и запросите новое.</Alert.Description
+					>Откройте ссылку в письме. Если письма пока нет, посмотрите в папке «Спам».</Alert.Description
 				>
 			</Alert.Root>
 			<FormError {error} />
@@ -145,12 +146,11 @@
 							spellcheck={false}
 							required
 							disabled={pending}
-							placeholder="your_nickname"
+							placeholder="your_name"
 							aria-describedby="nickname-help"
 						/>
 						<Field.FieldDescription id="nickname-help"
-							>3–30 символов: латинские буквы, цифры, _ и -. Без точек и пробелов. Это ваш будущий
-							адрес профиля.</Field.FieldDescription
+							>Ваш будущий адрес профиля. 3–30 символов: a–z, 0–9, _ и -. Без пробелов и точек.</Field.FieldDescription
 						>
 					</Field.Field>
 				{/if}
@@ -165,7 +165,7 @@
 						maxlength={254}
 						required
 						disabled={pending}
-						placeholder="you@example.ru"
+						placeholder="you@example.com"
 					/>
 				</Field.Field>
 				{#if mode !== 'forgot'}<PasswordFields
@@ -177,7 +177,6 @@
 			</Field.FieldGroup>
 			<FormError {error} id={errorId} />
 			<SubmitButton {pending} label={text.submit} errorId={error ? errorId : undefined} />
-			{#if mode === 'login'}<Button href="/auth/forgot" variant="link">Не помню пароль</Button>{/if}
 		</form>
 	{/if}
 	{#snippet footer()}
@@ -194,11 +193,11 @@
 			{/if}
 		{:else if mode === 'login'}
 			<p class="text-center text-xs text-muted-foreground">
-				Впервые здесь? <a class="text-link" href="/auth/register">Создать аккаунт</a>
+				Ещё нет аккаунта? <a class="text-link" href="/auth/register">Создать аккаунт</a>
 			</p>
 		{:else if mode === 'register'}
 			<p class="text-center text-xs text-muted-foreground">
-				Уже с нами? <a class="text-link" href="/auth/login">Войти</a>
+				Уже есть аккаунт? <a class="text-link" href="/auth/login">Войти</a>
 			</p>
 		{:else}
 			<Button href="/auth/login" variant="link">Вернуться ко входу</Button>
