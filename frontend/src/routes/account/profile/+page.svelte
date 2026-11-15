@@ -120,9 +120,9 @@
 			>{/if}
 	</div>
 	<nav class="creator-nav" aria-label="Настройки автора">
-		<a href="/account/profile" aria-current="page">Профиль</a><a href="/account/tiers"
-			>Уровни подписки</a
-		>
+		<a href="/account/profile" aria-current="page">Профиль</a>
+		<a href="/account/tiers">Уровни подписки</a>
+		<a href="/account/posts">Публикации</a>
 	</nav>
 	{#if failure}<Alert.Root variant="destructive" role="alert"
 			><Alert.Title>Не удалось сохранить</Alert.Title><Alert.Description

@@ -7,6 +7,7 @@ require (
 	github.com/minio/minio-go/v7 v7.4.1
 	github.com/pressly/goose/v3 v3.30.0
 	github.com/wneessen/go-mail v0.8.2
+	github.com/yuin/goldmark v1.8.7
 	golang.org/x/crypto v0.59.0
 	golang.org/x/image v0.48.0
 	golang.org/x/term v0.48.0

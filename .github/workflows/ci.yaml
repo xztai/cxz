@@ -25,6 +25,7 @@ jobs:
         options: --health-cmd 'pg_isready -U etheyl_test -d etheyl_test' --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       TEST_DATABASE_URL: postgres://etheyl_test:etheyl_test@localhost:5432/etheyl_test?sslmode=disable
+      TEST_S3_ENDPOINT: 127.0.0.1:9002
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -35,7 +36,9 @@ jobs:
         run: |
           go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate
           git diff --exit-code -- internal/store
-      - name: Go tests and race detector with PostgreSQL
+      - name: Private MinIO for media integration tests
+        run: docker compose -p etheyl-ci-storage -f ../compose.test.yaml up -d --build --wait test-minio
+      - name: Go tests and race detector with PostgreSQL and MinIO
         run: go test -race -count=1 -coverpkg=./... -coverprofile=coverage.out ./...
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -48,6 +51,8 @@ jobs:
         run: python3 ../scripts/restore-drill.py
       - name: golangci-lint v2.15.0
         run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./...
+      - if: always()
+        run: docker compose -p etheyl-ci-storage -f ../compose.test.yaml down
   frontend:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -73,6 +78,9 @@ jobs:
     needs: [backend, frontend]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      matrix:
+        suite: [auth, publications]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -87,13 +95,16 @@ jobs:
       - name: Runtime database permissions
         run: docker compose exec -T postgres psql -U etheyl -d etheyl < scripts/check-db-roles.sql
       - run: make e2e
+        if: matrix.suite == 'auth'
+      - run: pnpm --dir frontend test:e2e:publications
+        if: matrix.suite == 'publications'
       - name: Logs on failure
         if: failure()
         run: docker compose logs --no-color --tail 100
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
-          name: playwright-results
+          name: playwright-results-${{ matrix.suite }}
           path: |
             frontend/test-results
             frontend/playwright-report

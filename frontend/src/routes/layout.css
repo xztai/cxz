@@ -1404,6 +1404,225 @@
 	}
 }
 
+/* Publications follow the account workspace and a quiet reading measure. */
+.creator-nav {
+	flex-wrap: wrap;
+	column-gap: 24px;
+	row-gap: 0;
+}
+.post-list {
+	max-width: 900px;
+}
+.post-list-row {
+	padding-block: 28px;
+	border-bottom: 1px solid var(--border);
+}
+.post-list-row h2,
+.post-list-row h3 {
+	font-size: 24px;
+	font-weight: 550;
+	margin-block: 12px;
+	overflow-wrap: anywhere;
+}
+.post-list-row > [data-slot='button'] {
+	margin-top: 18px;
+}
+.post-teaser {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	line-height: 1.75;
+}
+.post-pagination,
+.post-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+	margin-block: 24px;
+}
+.post-editor-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+	gap: 56px;
+	margin-block: 32px;
+}
+.post-files {
+	min-width: 0;
+}
+.post-files h2 {
+	font-size: 22px;
+	font-weight: 550;
+}
+.post-select {
+	width: 100%;
+	min-height: 44px;
+	padding: 10px;
+	border: 1px solid var(--input);
+	border-radius: var(--radius);
+	background: var(--background);
+	color: var(--foreground);
+	outline: none;
+}
+.post-select:focus-visible {
+	border-color: var(--ring);
+	box-shadow: 0 0 0 1px var(--ring);
+}
+.post-select:disabled {
+	opacity: 0.5;
+}
+.creator-form [data-slot='textarea'].post-body-input {
+	min-height: 360px;
+}
+.post-file-list {
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+	margin-top: 24px;
+}
+.post-file-list li {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 8px;
+	padding-bottom: 24px;
+	border-bottom: 1px solid var(--border);
+	overflow-wrap: anywhere;
+}
+.post-file-list img {
+	max-width: 100%;
+	max-height: 180px;
+	object-fit: contain;
+}
+.post-file-list a {
+	max-width: 100%;
+}
+.post-manage {
+	border-top: 1px solid var(--border);
+	padding-top: 24px;
+	margin-top: 40px;
+}
+.author-publications {
+	padding-bottom: 80px;
+}
+.author-publications > .section-title h2 {
+	font-size: 30px;
+	font-weight: 550;
+}
+.post-reader {
+	max-width: 900px;
+	margin-inline: auto;
+	padding-block: 48px 88px;
+}
+.post-reader-heading {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 24px;
+	margin-bottom: 40px;
+}
+.post-reader h1 {
+	font-size: clamp(30px, 4vw, 48px);
+	line-height: 1.2;
+	font-weight: 550;
+	overflow-wrap: anywhere;
+}
+.post-reader-heading .post-teaser {
+	color: var(--muted-foreground);
+	font-size: 18px;
+}
+.post-prose {
+	line-height: 1.85;
+	overflow-wrap: anywhere;
+}
+.post-prose > * + * {
+	margin-top: 20px;
+}
+.post-prose h1,
+.post-prose h2,
+.post-prose h3,
+.post-prose h4 {
+	margin-top: 32px;
+	font-weight: 550;
+	line-height: 1.3;
+}
+.post-prose h2 {
+	font-size: 28px;
+}
+.post-prose h3 {
+	font-size: 23px;
+}
+.post-prose ul,
+.post-prose ol {
+	padding-left: 26px;
+}
+.post-prose ul {
+	list-style: disc;
+}
+.post-prose ol {
+	list-style: decimal;
+}
+.post-prose a,
+.post-media-stack a,
+.post-file-list a {
+	text-decoration: underline;
+	text-underline-offset: 4px;
+}
+.post-prose blockquote {
+	padding: 16px 24px;
+	background: var(--muted);
+}
+.post-prose pre {
+	max-width: 100%;
+	overflow-x: auto;
+	padding: 20px;
+	background: var(--muted);
+	font-size: 14px;
+}
+.post-prose img {
+	max-width: 100%;
+	height: auto;
+}
+.post-media-stack {
+	display: flex;
+	flex-direction: column;
+	gap: 36px;
+	margin-top: 40px;
+}
+.post-media-stack figure {
+	min-width: 0;
+}
+.post-media-stack video,
+.post-media-stack audio,
+.post-image {
+	width: 100%;
+	max-height: 70vh;
+}
+.post-image {
+	object-fit: contain;
+	object-position: left center;
+}
+.post-media-stack figcaption {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 20px;
+	align-items: baseline;
+	margin-top: 12px;
+	font-size: 14px;
+	overflow-wrap: anywhere;
+}
+.post-media-stack figcaption span {
+	color: var(--muted-foreground);
+}
+@media (max-width: 760px) {
+	.post-editor-layout {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 40px;
+	}
+	.post-select {
+		max-width: 100%;
+	}
+}
+
 /* Creator tools extend the quiet account workspace and its shared tokens. */
 .creator-workspace,
 .public-author {

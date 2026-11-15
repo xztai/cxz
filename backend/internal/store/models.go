@@ -37,6 +37,32 @@ type MailOutbox struct {
 	FailureCode string
 }
 
+type Post struct {
+	ID            int64
+	AuthorID      int64
+	Title         string
+	Teaser        string
+	BodyMarkdown  string
+	MinimumTierID pgtype.Int8
+	PublishedAt   pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+}
+
+type PostMedium struct {
+	ID           int64
+	AuthorID     int64
+	PostID       pgtype.Int8
+	Kind         string
+	Filename     string
+	ContentType  string
+	SizeBytes    int64
+	ObjectKey    string
+	ThumbnailKey string
+	State        string
+	CreatedAt    pgtype.Timestamptz
+}
+
 type ProfileImage struct {
 	UserID      int64
 	Kind        string
@@ -60,6 +86,15 @@ type Session struct {
 	UserID    int64
 	ExpiresAt pgtype.Timestamptz
 	CreatedAt pgtype.Timestamptz
+}
+
+type Subscription struct {
+	SubscriberID int64
+	AuthorID     int64
+	TierID       int64
+	StartsAt     pgtype.Timestamptz
+	ExpiresAt    pgtype.Timestamptz
+	RevokedAt    pgtype.Timestamptz
 }
 
 type SubscriptionTier struct {

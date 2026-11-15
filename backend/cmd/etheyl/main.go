@@ -115,7 +115,17 @@ func run(logger *slog.Logger) error {
 		}
 		handler := s.Handler()
 		var workers sync.WaitGroup
+		if command == "api" {
+			workers.Go(func() { media.RunTempCleanup(ctx, logger) })
+		}
 		if command == "worker" {
+			if cfg.S3Endpoint != "" {
+				objects, err := media.New(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3Secure)
+				if err != nil {
+					return err
+				}
+				workers.Go(func() { media.RunCleanup(ctx, pool, objects, logger) })
+			}
 			sender, err := mailqueue.NewSMTP(cfg)
 			if err != nil {
 				return errors.New("invalid SMTP configuration")

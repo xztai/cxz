@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '#lib/components/ui/button/index.js';
+	import { Badge } from '#lib/components/ui/badge/index.js';
 	import * as Empty from '#lib/components/ui/empty/index.js';
 	import { rubles } from '#lib/creators/prices.js';
 	import type { PageProps } from './$types';
@@ -73,4 +74,33 @@
 				>{/if}
 		</section>
 	</div>
+</section>
+<section class="author-publications page-inset" aria-labelledby="posts-heading">
+	<div class="section-title">
+		<h2 id="posts-heading">Публикации</h2>
+		{#if owner}<Button href="/account/posts" variant="outline">Управлять постами</Button>{/if}
+	</div>
+	{#if data.posts.length}
+		<div class="post-list">
+			{#each data.posts as post (post.id)}<article class="post-list-row">
+					<Badge variant="outline">{post.minimumTierId ? 'По подписке' : 'Открытый доступ'}</Badge>
+					<h3><a href={`/posts/${post.id}`}>{post.title}</a></h3>
+					{#if post.teaser}<p class="post-teaser">{post.teaser}</p>{/if}
+					<Button href={`/posts/${post.id}`} variant="outline">Открыть пост</Button>
+				</article>{/each}
+		</div>
+	{:else}<Empty.Root
+			><Empty.Header
+				><Empty.Title>Истории скоро появятся</Empty.Title><Empty.Description
+					>Автор ещё не опубликовал посты.</Empty.Description
+				></Empty.Header
+			></Empty.Root
+		>{/if}
+	<nav class="post-pagination" aria-label="Страницы публикаций">
+		{#if data.offset > 0}<Button href={`?offset=${Math.max(0, data.offset - 24)}`} variant="outline"
+				>Назад</Button
+			>{/if}{#if data.hasMore}<Button href={`?offset=${data.offset + 24}`} variant="outline"
+				>Дальше</Button
+			>{/if}
+	</nav>
 </section>

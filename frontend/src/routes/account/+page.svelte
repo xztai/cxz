@@ -110,14 +110,14 @@
 							<Empty.Media variant="icon"><PenLine aria-hidden="true" /></Empty.Media>
 							<Empty.Title><h2>Место для вашего голоса</h2></Empty.Title>
 							<Empty.Description
-								>Оформите публичную страницу и создайте уровни подписки. Ваш профиль появится в
-								каталоге авторов.</Empty.Description
+								>Публикуйте истории, добавляйте медиа и выбирайте, кому они доступны.</Empty.Description
 							>
 						</Empty.Header>
 						<Empty.Content
-							><Button href="/account/profile">Оформить профиль</Button><Button
-								href="/account/tiers"
-								variant="outline">Уровни подписки</Button
+							><Button href="/account/posts">Публикации</Button><Button
+								href="/account/profile"
+								variant="outline">Оформить профиль</Button
+							><Button href="/account/tiers" variant="outline">Уровни подписки</Button
 							></Empty.Content
 						>
 					</Empty.Root>

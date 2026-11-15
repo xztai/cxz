@@ -31,6 +31,7 @@ type Server struct {
 	log      *slog.Logger
 	accounts *accounts.Service
 	images   media.Storage
+	files    media.Objects
 }
 
 type apiError struct {
@@ -65,16 +66,30 @@ func New(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (*Server, e
 	}
 	s := &Server{pool: pool, q: store.New(pool), cfg: cfg, log: logger, accounts: service}
 	if cfg.S3Endpoint != "" {
-		s.images, err = media.New(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3Secure)
+		var storage *media.S3
+		storage, err = media.New(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3Secure)
 		if err != nil {
 			return nil, err
 		}
+		s.images, s.files = storage, storage
 	}
 	return s, nil
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/me/posts", s.endpoint(s.ownPosts))
+	mux.HandleFunc("POST /api/v1/me/posts", s.endpoint(s.createPost))
+	mux.HandleFunc("GET /api/v1/me/posts/{id}", s.endpoint(s.ownPost))
+	mux.HandleFunc("PUT /api/v1/me/posts/{id}", s.endpoint(s.updatePost))
+	mux.HandleFunc("DELETE /api/v1/me/posts/{id}", s.endpoint(s.deletePost))
+	mux.HandleFunc("POST /api/v1/me/posts/{id}/publish", s.endpoint(s.publishPost))
+	mux.HandleFunc("POST /api/v1/me/posts/{id}/unpublish", s.endpoint(s.unpublishPost))
+	mux.HandleFunc("POST /api/v1/me/posts/{id}/media", s.endpoint(s.uploadPostMedia))
+	mux.HandleFunc("DELETE /api/v1/me/posts/{id}/media/{mediaID}", s.endpoint(s.detachPostMedia))
+	mux.HandleFunc("GET /api/v1/authors/{nickname}/posts", s.endpoint(s.authorPosts))
+	mux.HandleFunc("GET /api/v1/posts/{id}", s.endpoint(s.getPost))
+	mux.HandleFunc("GET /api/v1/media/{mediaID}/{variant}", s.endpoint(s.servePostMedia))
 	mux.HandleFunc("GET /api/v1/me/profile", s.endpoint(s.ownProfile))
 	mux.HandleFunc("PUT /api/v1/me/profile", s.endpoint(s.saveProfile))
 	mux.HandleFunc("PUT /api/v1/me/profile/images/{kind}", s.endpoint(s.uploadImage))
@@ -113,6 +128,10 @@ func (s *Server) Handler() http.Handler {
 		if timeout == 0 {
 			timeout = 5 * time.Second
 		}
+		if mediaTransfer(r) {
+			timeout = media.TransferTimeout
+			_ = http.NewResponseController(w).SetWriteDeadline(started.Add(timeout))
+		}
 		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
 		r = r.WithContext(ctx)
@@ -121,6 +140,7 @@ func (s *Server) Handler() http.Handler {
 			s.log.Info("request completed", "request_id", id, "method", r.Method, "route", r.Pattern, "status", recorder.status, "duration_ms", time.Since(started).Milliseconds())
 		}()
 		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Vary", "Cookie")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		defer func() {
@@ -151,6 +171,12 @@ func (s *Server) endpoint(fn endpoint) http.HandlerFunc {
 				// 5000 Unicode characters may occupy up to 60 KB in escaped JSON.
 				limit = 64 * 1024
 			}
+			if strings.HasPrefix(r.URL.Path, "/api/v1/me/posts") {
+				limit = 2 << 20
+			}
+			if r.Method == http.MethodPost && mediaTransfer(r) {
+				limit = media.MaxFileBytes
+			}
 			if r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/v1/me/profile/images/") {
 				limit = media.MaxBytes
 			}
@@ -160,6 +186,11 @@ func (s *Server) endpoint(fn endpoint) http.HandlerFunc {
 			s.writeError(w, err)
 		}
 	}
+}
+
+func mediaTransfer(r *http.Request) bool {
+	return ((r.Method == http.MethodGet || r.Method == http.MethodHead) && strings.HasPrefix(r.URL.Path, "/api/v1/media/")) ||
+		(r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/api/v1/me/posts/") && strings.HasSuffix(r.URL.Path, "/media"))
 }
 
 func (s *Server) writeError(w http.ResponseWriter, err error) {
@@ -437,6 +468,8 @@ type responseStatus struct {
 }
 
 func (w *responseStatus) WriteHeader(status int) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Vary", "Cookie")
 	if !w.written {
 		w.status = status
 		w.written = true

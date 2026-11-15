@@ -351,10 +351,232 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ownPosts"];
+        put?: never;
+        post: operations["createPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/posts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+            };
+            cookie?: never;
+        };
+        get: operations["ownPost"];
+        put: operations["updatePost"];
+        post?: never;
+        delete: operations["deletePost"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/posts/{id}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["publishPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/posts/{id}/unpublish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["unpublishPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/posts/{id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Raw file body, up to 104857600 bytes (100 MiB), through the API only.
+         *     Original bytes are preserved. Images PNG/JPEG/GIF/WebP up to 8192px and 16MP
+         *     receive a separate PNG thumbnail up to 640px. Audio/video are served as originals;
+         *     browser codec support is required. SVG/HTML and arbitrary files use attachment kind.
+         *     Failed uploads expire after one hour. No public S3 URLs are issued.
+         */
+        post: operations["uploadPostMedia"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/posts/{id}/media/{mediaID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+                mediaID: components["parameters"]["MediaID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["detachPostMedia"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/authors/{nickname}/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Published titles and explicit public teasers only; never contains body or media. */
+        get: operations["authorPosts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/posts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description Drafts are visible only to their author. Published posts are public or require an
+         *     active subscription of at least the minimum tier, for the same author. Tier order,
+         *     not price, defines access. Archived tiers retain grants. A locked response omits
+         *     bodyMarkdown, bodyHtml and media entirely; teaser is never derived from the body.
+         */
+        get: operations["getPost"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/media/{mediaID}/{variant}": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description HTTP byte ranges */
+                Range?: string;
+                "If-Range"?: string;
+            };
+            path: {
+                mediaID: components["parameters"]["MediaID"];
+                variant: "original" | "thumbnail";
+            };
+            cookie?: never;
+        };
+        /**
+         * @description Authorizes the parent post before serving bytes or conditional responses.
+         *     Cache-Control no-store, Vary Cookie, no public URLs. Attachments always have
+         *     Content-Disposition attachment and application/octet-stream. No ETag is issued.
+         */
+        get: operations["getPostMedia"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** @description Same authorization and headers as GET, without body. */
+        head: operations["headPostMedia"];
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        PostInput: {
+            title: string;
+            /** @description Explicit public plain text */
+            teaser: string;
+            /** @description CommonMark without arbitrary HTML or dangerous link schemes */
+            bodyMarkdown: string;
+            /** @description Null for public posts */
+            minimumTierId: string | null;
+        };
+        PostSummary: {
+            id: string;
+            authorNickname: string;
+            title: string;
+            teaser: string;
+            minimumTierId: string | null;
+            /** Format: date-time */
+            publishedAt: string | null;
+        };
+        Post: components["schemas"]["PostSummary"] & {
+            canRead: boolean;
+            /** @description Only present with access */
+            bodyMarkdown?: string;
+            /** @description Safe server-rendered Markdown */
+            bodyHtml?: string;
+            /** @description Only present with access */
+            media?: components["schemas"]["PostFile"][];
+        };
+        PostFile: {
+            id: string;
+            /** @enum {string} */
+            kind: "image" | "audio" | "video" | "attachment";
+            filename: string;
+            contentType: string;
+            sizeBytes: number;
+            /** @description Same-origin API route */
+            url: string;
+            thumbnailUrl: string | null;
+        };
         ProfileInput: {
             nickname: string;
             displayName: string;
@@ -426,6 +648,44 @@ export interface components {
         };
     };
     responses: {
+        /** @description Post with server-enforced content access */
+        Post: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    post: components["schemas"]["Post"];
+                };
+            };
+        };
+        /** @description Up to 24 summaries, newest ID first */
+        Posts: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    posts: components["schemas"]["PostSummary"][];
+                    hasMore: boolean;
+                };
+            };
+        };
+        /** @description Authorized original or thumbnail, no-store */
+        MediaBytes: {
+            headers: {
+                "Accept-Ranges"?: string;
+                "Content-Range"?: string;
+                "Content-Length"?: number;
+                "Content-Disposition"?: string;
+                "Cache-Control"?: "no-store";
+                Vary?: "Cookie";
+                [name: string]: unknown;
+            };
+            content: {
+                "*/*": string;
+            };
+        };
         /** @description Saved public profile */
         Profile: {
             headers: {
@@ -490,8 +750,18 @@ export interface components {
             };
         };
     };
-    parameters: never;
-    requestBodies: never;
+    parameters: {
+        PostID: string;
+        MediaID: string;
+        PostOffset: number;
+    };
+    requestBodies: {
+        Post: {
+            content: {
+                "application/json": components["schemas"]["PostInput"];
+            };
+        };
+    };
     headers: never;
     pathItems: never;
 }
@@ -994,6 +1264,235 @@ export interface operations {
         };
         responses: {
             200: components["responses"]["Tiers"];
+            default: components["responses"]["Error"];
+        };
+    };
+    ownPosts: {
+        parameters: {
+            query?: {
+                offset?: components["parameters"]["PostOffset"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Posts"];
+            default: components["responses"]["Error"];
+        };
+    };
+    createPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["Post"];
+        responses: {
+            201: components["responses"]["Post"];
+            default: components["responses"]["Error"];
+        };
+    };
+    ownPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Post"];
+            default: components["responses"]["Error"];
+        };
+    };
+    updatePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+            };
+            cookie?: never;
+        };
+        requestBody: components["requestBodies"]["Post"];
+        responses: {
+            200: components["responses"]["Post"];
+            default: components["responses"]["Error"];
+        };
+    };
+    deletePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Message"];
+            default: components["responses"]["Error"];
+        };
+    };
+    publishPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Post"];
+            default: components["responses"]["Error"];
+        };
+    };
+    unpublishPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Post"];
+            default: components["responses"]["Error"];
+        };
+    };
+    uploadPostMedia: {
+        parameters: {
+            query: {
+                kind: "image" | "audio" | "video" | "attachment";
+                filename: string;
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Ready file attached to the post */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        media: components["schemas"]["PostFile"];
+                    };
+                };
+            };
+            413: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    detachPostMedia: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+                mediaID: components["parameters"]["MediaID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Message"];
+            default: components["responses"]["Error"];
+        };
+    };
+    authorPosts: {
+        parameters: {
+            query?: {
+                offset?: components["parameters"]["PostOffset"];
+            };
+            header?: never;
+            path: {
+                nickname: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Posts"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PostID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Post"];
+            default: components["responses"]["Error"];
+        };
+    };
+    getPostMedia: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description HTTP byte ranges */
+                Range?: string;
+                "If-Range"?: string;
+            };
+            path: {
+                mediaID: components["parameters"]["MediaID"];
+                variant: "original" | "thumbnail";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["MediaBytes"];
+            206: components["responses"]["MediaBytes"];
+            403: components["responses"]["Error"];
+            412: components["responses"]["Error"];
+            416: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    headPostMedia: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description HTTP byte ranges */
+                Range?: string;
+                "If-Range"?: string;
+            };
+            path: {
+                mediaID: components["parameters"]["MediaID"];
+                variant: "original" | "thumbnail";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["MediaBytes"];
+            403: components["responses"]["Error"];
             default: components["responses"]["Error"];
         };
     };

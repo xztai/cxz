@@ -3,7 +3,7 @@ info:
   title: etheyl API
   version: 1.0.0
   description: |
-    Профили авторов и уровни подписки. Все ответы приватные (Cache-Control no-store).
+    Профили авторов, уровни подписки, публикации и приватные медиа. Все ответы приватные (Cache-Control no-store).
     Для POST, PUT и DELETE нужны точный Origin, HttpOnly CSRF-cookie и заголовок X-CSRF-Token,
     полученные через GET /auth/csrf. В HTTPS имена cookies имеют префикс __Host-.
     Сессия живёт 30 дней; подтверждение email — 24 часа; сброс пароля — 1 час.
@@ -358,11 +358,200 @@ paths:
       responses:
         '200': {$ref: '#/components/responses/Tiers'}
         default: {$ref: '#/components/responses/Error'}
+  /me/posts:
+    get:
+      operationId: ownPosts
+      security: [{session: []}]
+      parameters: [{$ref: '#/components/parameters/PostOffset'}]
+      responses:
+        '200': {$ref: '#/components/responses/Posts'}
+        default: {$ref: '#/components/responses/Error'}
+    post:
+      operationId: createPost
+      security: [{session: [], csrf: []}]
+      requestBody: {$ref: '#/components/requestBodies/Post'}
+      responses:
+        '201': {$ref: '#/components/responses/Post'}
+        default: {$ref: '#/components/responses/Error'}
+  /me/posts/{id}:
+    parameters: [{$ref: '#/components/parameters/PostID'}]
+    get:
+      operationId: ownPost
+      security: [{session: []}]
+      responses:
+        '200': {$ref: '#/components/responses/Post'}
+        default: {$ref: '#/components/responses/Error'}
+    put:
+      operationId: updatePost
+      security: [{session: [], csrf: []}]
+      requestBody: {$ref: '#/components/requestBodies/Post'}
+      responses:
+        '200': {$ref: '#/components/responses/Post'}
+        default: {$ref: '#/components/responses/Error'}
+    delete:
+      operationId: deletePost
+      security: [{session: [], csrf: []}]
+      responses:
+        '200': {$ref: '#/components/responses/Message'}
+        default: {$ref: '#/components/responses/Error'}
+  /me/posts/{id}/publish:
+    parameters: [{$ref: '#/components/parameters/PostID'}]
+    post:
+      operationId: publishPost
+      security: [{session: [], csrf: []}]
+      responses:
+        '200': {$ref: '#/components/responses/Post'}
+        default: {$ref: '#/components/responses/Error'}
+  /me/posts/{id}/unpublish:
+    parameters: [{$ref: '#/components/parameters/PostID'}]
+    post:
+      operationId: unpublishPost
+      security: [{session: [], csrf: []}]
+      responses:
+        '200': {$ref: '#/components/responses/Post'}
+        default: {$ref: '#/components/responses/Error'}
+  /me/posts/{id}/media:
+    parameters: [{$ref: '#/components/parameters/PostID'}]
+    post:
+      operationId: uploadPostMedia
+      description: |
+        Raw file body, up to 104857600 bytes (100 MiB), through the API only.
+        Original bytes are preserved. Images PNG/JPEG/GIF/WebP up to 8192px and 16MP
+        receive a separate PNG thumbnail up to 640px. Audio/video are served as originals;
+        browser codec support is required. SVG/HTML and arbitrary files use attachment kind.
+        Failed uploads expire after one hour. No public S3 URLs are issued.
+      security: [{session: [], csrf: []}]
+      parameters:
+        - {in: query, name: kind, required: true, schema: {type: string, enum: [image, audio, video, attachment]}}
+        - {in: query, name: filename, required: true, schema: {type: string, minLength: 1, maxLength: 200}}
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, format: binary}
+      responses:
+        '201':
+          description: Ready file attached to the post
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [media]
+                properties:
+                  media: {$ref: '#/components/schemas/PostFile'}
+        '413': {$ref: '#/components/responses/Error'}
+        default: {$ref: '#/components/responses/Error'}
+  /me/posts/{id}/media/{mediaID}:
+    parameters: [{$ref: '#/components/parameters/PostID'}, {$ref: '#/components/parameters/MediaID'}]
+    delete:
+      operationId: detachPostMedia
+      security: [{session: [], csrf: []}]
+      responses:
+        '200': {$ref: '#/components/responses/Message'}
+        default: {$ref: '#/components/responses/Error'}
+  /authors/{nickname}/posts:
+    get:
+      operationId: authorPosts
+      description: Published titles and explicit public teasers only; never contains body or media.
+      parameters:
+        - {in: path, name: nickname, required: true, schema: {type: string}}
+        - {$ref: '#/components/parameters/PostOffset'}
+      responses:
+        '200': {$ref: '#/components/responses/Posts'}
+        default: {$ref: '#/components/responses/Error'}
+  /posts/{id}:
+    parameters: [{$ref: '#/components/parameters/PostID'}]
+    get:
+      operationId: getPost
+      description: |
+        Drafts are visible only to their author. Published posts are public or require an
+        active subscription of at least the minimum tier, for the same author. Tier order,
+        not price, defines access. Archived tiers retain grants. A locked response omits
+        bodyMarkdown, bodyHtml and media entirely; teaser is never derived from the body.
+      responses:
+        '200': {$ref: '#/components/responses/Post'}
+        default: {$ref: '#/components/responses/Error'}
+  /media/{mediaID}/{variant}:
+    parameters:
+      - {$ref: '#/components/parameters/MediaID'}
+      - {in: path, name: variant, required: true, schema: {type: string, enum: [original, thumbnail]}}
+      - {in: header, name: Range, schema: {type: string}, description: HTTP byte ranges, including suffix and multiple ranges}
+      - {in: header, name: If-Range, schema: {type: string}}
+    get:
+      operationId: getPostMedia
+      description: |
+        Authorizes the parent post before serving bytes or conditional responses.
+        Cache-Control no-store, Vary Cookie, no public URLs. Attachments always have
+        Content-Disposition attachment and application/octet-stream. No ETag is issued.
+      responses:
+        '200': {$ref: '#/components/responses/MediaBytes'}
+        '206': {$ref: '#/components/responses/MediaBytes'}
+        '403': {$ref: '#/components/responses/Error'}
+        '412': {$ref: '#/components/responses/Error'}
+        '416': {$ref: '#/components/responses/Error'}
+        default: {$ref: '#/components/responses/Error'}
+    head:
+      operationId: headPostMedia
+      description: Same authorization and headers as GET, without body.
+      responses:
+        '200': {$ref: '#/components/responses/MediaBytes'}
+        '403': {$ref: '#/components/responses/Error'}
+        default: {$ref: '#/components/responses/Error'}
 components:
   securitySchemes:
     session: { type: apiKey, in: cookie, name: etheyl_session }
     csrf: { type: apiKey, in: header, name: X-CSRF-Token }
+  parameters:
+    PostID: {in: path, name: id, required: true, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
+    MediaID: {in: path, name: mediaID, required: true, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
+    PostOffset: {in: query, name: offset, schema: {type: integer, minimum: 0, maximum: 100000, default: 0}}
+  requestBodies:
+    Post:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/PostInput'}
   schemas:
+    PostInput:
+      type: object
+      additionalProperties: false
+      required: [title, teaser, bodyMarkdown, minimumTierId]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 200}
+        teaser: {type: string, maxLength: 2000, description: Explicit public plain text, independent of private body}
+        bodyMarkdown: {type: string, maxLength: 100000, description: CommonMark without arbitrary HTML or dangerous link schemes}
+        minimumTierId: {type: [string, 'null'], pattern: '^[1-9][0-9]*$', description: Null for public posts}
+    PostSummary:
+      type: object
+      required: [id, authorNickname, title, teaser, minimumTierId, publishedAt]
+      properties:
+        id: {type: string}
+        authorNickname: {type: string}
+        title: {type: string}
+        teaser: {type: string}
+        minimumTierId: {type: [string, 'null']}
+        publishedAt: {type: [string, 'null'], format: date-time}
+    Post:
+      allOf:
+        - {$ref: '#/components/schemas/PostSummary'}
+        - type: object
+          required: [canRead]
+          properties:
+            canRead: {type: boolean}
+            bodyMarkdown: {type: string, description: Only present with access}
+            bodyHtml: {type: string, description: Safe server-rendered Markdown, only present with access}
+            media: {type: array, items: {$ref: '#/components/schemas/PostFile'}, description: Only present with access}
+    PostFile:
+      type: object
+      required: [id, kind, filename, contentType, sizeBytes, url, thumbnailUrl]
+      properties:
+        id: {type: string}
+        kind: {type: string, enum: [image, audio, video, attachment]}
+        filename: {type: string}
+        contentType: {type: string}
+        sizeBytes: {type: integer, minimum: 1, maximum: 104857600}
+        url: {type: string, description: Same-origin API route, authorizes every request}
+        thumbnailUrl: {type: [string, 'null']}
     ProfileInput:
       type: object
       additionalProperties: false
@@ -471,6 +660,37 @@ components:
             code: { type: string }
             message: { type: string }
   responses:
+    Post:
+      description: Post with server-enforced content access
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [post]
+            properties:
+              post: {$ref: '#/components/schemas/Post'}
+    Posts:
+      description: Up to 24 summaries, newest ID first
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [posts, hasMore]
+            properties:
+              posts: {type: array, items: {$ref: '#/components/schemas/PostSummary'}}
+              hasMore: {type: boolean}
+    MediaBytes:
+      description: Authorized original or thumbnail, no-store
+      headers:
+        Accept-Ranges: {schema: {type: string}}
+        Content-Range: {schema: {type: string}}
+        Content-Length: {schema: {type: integer}}
+        Content-Disposition: {schema: {type: string}}
+        Cache-Control: {schema: {type: string, const: no-store}}
+        Vary: {schema: {type: string, const: Cookie}}
+      content:
+        '*/*':
+          schema: {type: string, format: binary}
     Profile:
       description: Saved public profile
       content:
