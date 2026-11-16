@@ -42,3 +42,19 @@ pnpm test:e2e
 ```
 
 E2E requires a running Compose stack and Chromium; see [test setup](README.md). Run desktop and mobile projects; override `E2E_BASE_URL`/`MAILPIT_URL` if needed. Do not bypass production rate limits for browser tests; use a fresh test stack for repeated registration flows.
+
+## Billing (stage 4)
+
+- Checkout lives at `/authors/[nickname]/subscribe?tier=ID`; account routes are `/account/subscriptions`, `/account/payments`, `/account/payments/[id]`. Shared billing UI lives in `src/lib/components/billing` and formatters in `src/lib/billing`.
+- Use installed shadcn `Checkbox` for explicit consent (unchecked initially) and `NativeSelect` for level changes. Show exact RUB amounts, future charge terms and the test-shop label. Keep theme tokens centralized.
+- A return from YooKassa never proves success. Payment GET is read-only; poll the server result, cap polling, clean up timers. Never grant access from query parameters or client state.
+- Confirm current price in checkout/level-change payloads. Cancellation preserves paid access. `review` blocks new payment attempts; tell users the result is being checked.
+- Run `pnpm test:e2e:billing` on a fresh Compose stack for desktop/mobile (the checkout failure response is mocked; backend lifecycle uses the integration fake provider). `pnpm build` enforces separate budgets for core route JS and the lazy analytics chart; see the stage 5 rules.
+
+## Feed, discussion and analytics (stage 5)
+
+- `/account/feed` uses opaque cursors from `/me/feed`, never offsets or client-filtered permission checks. Above-level posts show only public teaser/upgrade links. Paid access survives canceled renewal until expiry.
+- `PostDiscussion` is keyed by post ID. Use the typed API for idempotent likes and plain-text flat comments; never render comment HTML. Clear displayed discussion if the API denies access. Preserve drafts after errors and disable duplicate submits.
+- `/account/analytics` shows inclusive UTC date filters, confirmed test payments and a separately labeled current subscription snapshot. The current tier price must never replace the paid amount. `AnalyticsReport` loads `PaymentsChart` only in the browser; use the installed shadcn Chart/Table/Skeleton components and theme tokens. Keep the daily table available when the chart cannot load.
+- LayerChart is pinned at `2.10.1`; use its SVG entry. Build checks count every asset: core JS ≤160 KB gzip, lazy chart JS ≤180 KB gzip, fonts ≤150 KB, CSS ≤20 KB. The manifest check rejects eager inclusion of the chart. Do not import chart components into global layouts.
+- `pnpm test:e2e:social` requires a fresh Compose project ending in `-social-tests`, set through `E2E_SOCIAL_PROJECT`. Its fixture seeds only that test database; never add an HTTP grant endpoint. Run desktop/mobile; see [docs/social.md](../docs/social.md) for ports and commands.

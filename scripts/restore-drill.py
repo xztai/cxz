@@ -15,7 +15,7 @@ def run(*args, **kwargs):
     return subprocess.run(compose + list(args), check=True, **kwargs)
 
 def fingerprint(database):
-    tables = ('users', 'sessions', 'action_tokens', 'mail_outbox', 'rate_limits', 'creator_profiles', 'profile_images', 'subscription_tiers', 'goose_db_version')
+    tables = ('users', 'sessions', 'action_tokens', 'mail_outbox', 'rate_limits', 'creator_profiles', 'profile_images', 'subscription_tiers', 'posts', 'post_media', 'subscriptions', 'billing_agreements', 'payments', 'post_likes', 'post_comments', 'goose_db_version')
     statements = [f"SELECT '{table}', count(*), md5(coalesce(string_agg(row_to_json(t)::text,'' ORDER BY row_to_json(t)::text),'')) FROM {table} t;" for table in tables]
     return run('psql', '-U', 'etheyl_test', '-d', database, '-At', '-v', 'ON_ERROR_STOP=1', '-c', '\n'.join(statements), capture_output=True).stdout
 
@@ -28,6 +28,6 @@ with tempfile.TemporaryFile() as dump:
         run('pg_restore', '-U', 'etheyl_test', '--no-owner', '--no-acl', '--exit-on-error', '-d', restored, stdin=dump)
         if before != fingerprint(restored):
             raise SystemExit('Restore fingerprints differ')
-        print('Restore drill passed: all nine application/migration tables match.')
+        print('Restore drill passed: all application/migration tables match, including payments and paid grants.')
     finally:
         run('dropdb', '-U', 'etheyl_test', restored)

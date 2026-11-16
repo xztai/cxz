@@ -185,11 +185,19 @@
 
 {#snippet feedback(scope: string)}
 	{#if feedbackScope === scope}
-		{#if failure}<Alert.Root variant="destructive" role="alert"
-				><Alert.Title>Не удалось выполнить действие</Alert.Title><Alert.Description
-					>{failure}</Alert.Description
-				></Alert.Root
-			>{/if}
+		{#if failure}<div
+				tabindex="-1"
+				{@attach (node) => {
+					node.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+					node.focus({ preventScroll: true });
+				}}
+			>
+				<Alert.Root variant="destructive" role="alert"
+					><Alert.Title>Не удалось выполнить действие</Alert.Title><Alert.Description
+						>{failure}</Alert.Description
+					></Alert.Root
+				>
+			</div>{/if}
 		{#if message}<p role="status" class="save-message">{message}</p>{/if}
 	{/if}
 {/snippet}

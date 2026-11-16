@@ -15,6 +15,23 @@ type ActionToken struct {
 	ExpiresAt pgtype.Timestamptz
 }
 
+type BillingAgreement struct {
+	ID               int64
+	SubscriberID     int64
+	AuthorID         int64
+	TierID           int64
+	PriceKopecks     int64
+	NextTierID       pgtype.Int8
+	NextPriceKopecks pgtype.Int8
+	AutoRenew        bool
+	ConsentAt        pgtype.Timestamptz
+	PaymentMethodID  string
+	PaidUntil        pgtype.Timestamptz
+	AnchorDay        int32
+	StoppedReason    string
+	CreatedAt        pgtype.Timestamptz
+}
+
 type CreatorProfile struct {
 	UserID      int64
 	DisplayName string
@@ -24,17 +41,41 @@ type CreatorProfile struct {
 }
 
 type MailOutbox struct {
-	ID          int64
-	Recipient   string
-	Subject     string
-	Body        string
-	Attempts    int32
-	AvailableAt pgtype.Timestamptz
-	CreatedAt   pgtype.Timestamptz
-	TokenHash   string
-	ExpiresAt   pgtype.Timestamptz
-	FailedAt    pgtype.Timestamptz
-	FailureCode string
+	ID              int64
+	Recipient       string
+	Subject         string
+	Body            string
+	Attempts        int32
+	AvailableAt     pgtype.Timestamptz
+	CreatedAt       pgtype.Timestamptz
+	TokenHash       string
+	ExpiresAt       pgtype.Timestamptz
+	FailedAt        pgtype.Timestamptz
+	FailureCode     string
+	Kind            string
+	RecipientUserID pgtype.Int8
+}
+
+type Payment struct {
+	ID              string
+	AgreementID     int64
+	TierID          int64
+	AmountKopecks   int64
+	Renewal         bool
+	SaveMethod      bool
+	RequestBody     string
+	ProviderID      string
+	ConfirmationUrl string
+	Status          string
+	CreatedAt       pgtype.Timestamptz
+	FirstSentAt     pgtype.Timestamptz
+	AvailableAt     pgtype.Timestamptz
+	LeaseUntil      pgtype.Timestamptz
+	CompletedAt     pgtype.Timestamptz
+	PeriodStart     pgtype.Timestamptz
+	PeriodEnd       pgtype.Timestamptz
+	FailureCode     string
+	Attempts        int32
 }
 
 type Post struct {
@@ -47,6 +88,20 @@ type Post struct {
 	PublishedAt   pgtype.Timestamptz
 	CreatedAt     pgtype.Timestamptz
 	UpdatedAt     pgtype.Timestamptz
+}
+
+type PostComment struct {
+	ID        int64
+	PostID    int64
+	UserID    int64
+	Body      string
+	CreatedAt pgtype.Timestamptz
+}
+
+type PostLike struct {
+	PostID    int64
+	UserID    int64
+	CreatedAt pgtype.Timestamptz
 }
 
 type PostMedium struct {

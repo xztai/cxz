@@ -7,6 +7,8 @@ x-backend: &backend
     dockerfile: backend/Dockerfile
   environment: &backend-env
     DATABASE_URL: postgres://etheyl_api:${API_DATABASE_PASSWORD:?Run make init}@postgres:5432/etheyl?sslmode=disable
+    YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID:-}
+    YOOKASSA_API_KEY: ${YOOKASSA_API_KEY:-}
     OUTBOX_KEYS: ${OUTBOX_KEYS:?Run make init}
     APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8080}
     COOKIE_SECURE: ${COOKIE_SECURE:-false}

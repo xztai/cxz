@@ -12,6 +12,11 @@ func TestLoad(t *testing.T) {
 		valid bool
 	}{
 		{"local", nil, true},
+		{"test shop", map[string]string{"YOOKASSA_SHOP_ID": "1531842", "YOOKASSA_API_KEY": "test_key"}, true},
+		{"missing shop", map[string]string{"YOOKASSA_API_KEY": "test_key"}, false},
+		{"missing key", map[string]string{"YOOKASSA_SHOP_ID": "1531842"}, false},
+		{"live key", map[string]string{"YOOKASSA_SHOP_ID": "1531842", "YOOKASSA_API_KEY": "live_key"}, false},
+		{"invalid shop", map[string]string{"YOOKASSA_SHOP_ID": "not-number", "YOOKASSA_API_KEY": "test_key"}, false},
 		{"https", map[string]string{"APP_ORIGIN": "https://example.com", "COOKIE_SECURE": "true"}, true},
 		{"https insecure", map[string]string{"APP_ORIGIN": "https://example.com"}, false},
 		{"http secure", map[string]string{"COOKIE_SECURE": "true"}, false},
@@ -30,7 +35,7 @@ func TestLoad(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			for _, key := range []string{"DATABASE_URL", "APP_ORIGIN", "COOKIE_SECURE", "TRUST_PROXY", "SMTP_INSECURE", "SMTP_PORT", "HTTP_ADDR", "REQUEST_TIMEOUT", "SMTP_HOST", "SMTP_FROM", "OUTBOX_KEYS"} {
+			for _, key := range []string{"DATABASE_URL", "APP_ORIGIN", "COOKIE_SECURE", "TRUST_PROXY", "SMTP_INSECURE", "SMTP_PORT", "HTTP_ADDR", "REQUEST_TIMEOUT", "SMTP_HOST", "SMTP_FROM", "OUTBOX_KEYS", "YOOKASSA_SHOP_ID", "YOOKASSA_API_KEY"} {
 				t.Setenv(key, "")
 			}
 			t.Setenv("DATABASE_URL", "postgres://test:password@localhost/test")

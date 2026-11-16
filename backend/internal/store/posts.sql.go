@@ -330,14 +330,7 @@ func (q *Queries) OwnPost(ctx context.Context, arg OwnPostParams) (Post, error) 
 
 const postAccess = `-- name: PostAccess :one
 SELECT p.id, p.author_id, p.title, p.teaser, p.body_markdown, p.minimum_tier_id, p.published_at, p.created_at, p.updated_at, u.nickname,
- (p.author_id=$2::bigint OR p.minimum_tier_id IS NULL OR EXISTS(
-   SELECT 1 FROM subscriptions sub JOIN subscription_tiers granted ON granted.id=sub.tier_id
-   JOIN subscription_tiers required ON required.id=p.minimum_tier_id
-   WHERE sub.subscriber_id=$2::bigint AND sub.author_id=p.author_id
-    AND granted.author_id=p.author_id AND required.author_id=p.author_id
-    AND granted.position >= required.position AND sub.revoked_at IS NULL
-    AND sub.starts_at <= now() AND sub.expires_at > now()
- ))::boolean AS can_read
+ post_readable(p,$2::bigint)::boolean AS can_read
 FROM posts p JOIN users u ON u.id=p.author_id
 WHERE p.id=$1 AND NOT u.blocked AND u.email_verified
  AND (p.published_at IS NOT NULL OR p.author_id=$2::bigint)

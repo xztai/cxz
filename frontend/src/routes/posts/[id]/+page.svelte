@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PostDiscussion from '#lib/components/social/PostDiscussion.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { fileSize } from '#lib/posts/files.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
@@ -68,11 +69,23 @@
 		<Alert.Root
 			><Alert.Title>Пост для подписчиков</Alert.Title><Alert.Description
 				>Текст и файлы доступны с минимального уровня, выбранного автором, и на старших уровнях.
-				Оформление подписок появится после подключения оплаты.</Alert.Description
+				Выберите подходящий уровень на странице автора.</Alert.Description
 			></Alert.Root
 		>
+		<div class="post-actions">
+			<Button href={`/authors/${post.authorNickname}`}>Выбрать подписку</Button>
+		</div>
 		{#if !data.user}<div class="post-actions">
 				<Button href="/auth/login">Войти в аккаунт</Button>
 			</div>{/if}
+	{/if}
+	{#if post.canRead && post.publishedAt}
+		{#if data.user}{#key post.id}<PostDiscussion postId={post.id} />{/key}{:else}<section
+				class="mt-12 flex flex-col items-start gap-4 border-t border-border pt-8"
+			>
+				<h2>Обсуждение</h2>
+				<p>Войдите, чтобы поставить лайк или оставить комментарий.</p>
+				<Button href="/auth/login" variant="outline">Войти для обсуждения</Button>
+			</section>{/if}
 	{/if}
 </article>

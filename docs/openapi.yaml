@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: |
     Профили авторов, уровни подписки, публикации и приватные медиа. Все ответы приватные (Cache-Control no-store).
-    Для POST, PUT и DELETE нужны точный Origin, HttpOnly CSRF-cookie и заголовок X-CSRF-Token,
+    Для браузерных POST, PUT и DELETE нужны точный Origin, HttpOnly CSRF-cookie и заголовок X-CSRF-Token,
     полученные через GET /auth/csrf. В HTTPS имена cookies имеют префикс __Host-.
     Сессия живёт 30 дней; подтверждение email — 24 часа; сброс пароля — 1 час.
     Все auth POST: 60 запросов/IP/15 минут; регистрация 5/IP;
@@ -497,6 +497,511 @@ paths:
         '200': {$ref: '#/components/responses/MediaBytes'}
         '403': {$ref: '#/components/responses/Error'}
         default: {$ref: '#/components/responses/Error'}
+  /billing/checkout:
+    {
+      "post":
+        {
+          "operationId": "checkout",
+          "security": [{ "session": [], "csrf": [] }],
+          "responses":
+            {
+              "default": { "$ref": "#/components/responses/Error" },
+              "202": { "$ref": "#/components/responses/Payment" },
+            },
+          "requestBody":
+            {
+              "required": true,
+              "content":
+                {
+                  "application/json":
+                    {
+                      "schema":
+                        {
+                          "type": "object",
+                          "required": ["tierId", "priceKopecks", "autoRenew"],
+                          "properties":
+                            {
+                              "tierId": { "type": "string" },
+                              "priceKopecks":
+                                {
+                                  "type": "integer",
+                                  "minimum": 100,
+                                  "maximum": 100000000,
+                                },
+                              "autoRenew":
+                                {
+                                  "type": "boolean",
+                                  "description": "Explicit consent; false by default in UI",
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+  /me/payments/{id}:
+    {
+      "parameters":
+        [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+          },
+        ],
+      "get":
+        {
+          "operationId": "payment",
+          "security": [{ "session": [] }],
+          "responses":
+            {
+              "200": { "$ref": "#/components/responses/Payment" },
+              "default": { "$ref": "#/components/responses/Error" },
+            },
+        },
+    }
+  /me/payments:
+    {
+      "get":
+        {
+          "operationId": "payments",
+          "security": [{ "session": [] }],
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Test shop only; authoritative server verification",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "type": "object",
+                              "required": ["payments", "hasMore"],
+                              "properties":
+                                {
+                                  "payments":
+                                    {
+                                      "type": "array",
+                                      "items":
+                                        {
+                                          "$ref": "#/components/schemas/PaymentHistory",
+                                        },
+                                    },
+                                  "hasMore": { "type": "boolean" },
+                                },
+                            },
+                        },
+                    },
+                },
+              "default": { "$ref": "#/components/responses/Error" },
+            },
+          "parameters":
+            [
+              {
+                "name": "offset",
+                "in": "query",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000,
+                    "default": 0,
+                  },
+              },
+            ],
+        },
+    }
+  /me/subscriptions:
+    {
+      "get":
+        {
+          "operationId": "subscriptions",
+          "security": [{ "session": [] }],
+          "responses":
+            {
+              "200":
+                {
+                  "description": "Test shop only; authoritative server verification",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "type": "object",
+                              "required":
+                                ["subscriptions", "hasMore", "paymentsEnabled"],
+                              "properties":
+                                {
+                                  "subscriptions":
+                                    {
+                                      "type": "array",
+                                      "items":
+                                        {
+                                          "$ref": "#/components/schemas/Subscription",
+                                        },
+                                    },
+                                  "hasMore": { "type": "boolean" },
+                                  "paymentsEnabled": { "type": "boolean" },
+                                },
+                            },
+                        },
+                    },
+                },
+              "default": { "$ref": "#/components/responses/Error" },
+            },
+          "parameters":
+            [
+              {
+                "name": "offset",
+                "in": "query",
+                "schema":
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000,
+                    "default": 0,
+                  },
+              },
+            ],
+        },
+    }
+  /me/subscriptions/{id}/cancel:
+    {
+      "parameters":
+        [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+          },
+        ],
+      "post":
+        {
+          "operationId": "cancelSubscription",
+          "security": [{ "session": [], "csrf": [] }],
+          "responses":
+            {
+              "200": { "$ref": "#/components/responses/Message" },
+              "default": { "$ref": "#/components/responses/Error" },
+            },
+        },
+    }
+  /me/subscriptions/{id}/tier:
+    {
+      "parameters":
+        [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+          },
+        ],
+      "put":
+        {
+          "operationId": "changeSubscriptionTier",
+          "security": [{ "session": [], "csrf": [] }],
+          "responses":
+            {
+              "200": { "$ref": "#/components/responses/Message" },
+              "default": { "$ref": "#/components/responses/Error" },
+            },
+          "requestBody":
+            {
+              "required": true,
+              "content":
+                {
+                  "application/json":
+                    {
+                      "schema":
+                        { "$ref": "#/components/schemas/BillingTierInput" },
+                    },
+                },
+            },
+        },
+    }
+  /billing/yookassa/webhook:
+    {
+      "post":
+        {
+          "operationId": "yooKassaWebhook",
+          "security": [],
+          "responses":
+            {
+              "200": { "$ref": "#/components/responses/Message" },
+              "default": { "$ref": "#/components/responses/Error" },
+            },
+          "description": "Server-to-server only, rejects Cookie and Origin. Event is a hint: authenticated GET verifies test, recipient, currency, amount and metadata. No user endpoint bypasses CSRF.",
+          "requestBody":
+            {
+              "required": true,
+              "content":
+                {
+                  "application/json":
+                    {
+                      "schema":
+                        {
+                          "type": "object",
+                          "required": ["type", "event", "object"],
+                          "properties":
+                            {
+                              "type":
+                                { "type": "string", "const": "notification" },
+                              "event": { "type": "string" },
+                              "object":
+                                {
+                                  "type": "object",
+                                  "required": ["id"],
+                                  "properties": { "id": { "type": "string" } },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+  "/me/feed":
+    "get":
+      "operationId": "feed"
+      "security":
+        -
+          "session": []
+      "responses":
+        "200":
+          "description": "Server-authorized response, private no-store"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "posts"
+                  - "nextCursor"
+                "properties":
+                  "posts":
+                    "type": "array"
+                    "items":
+                      "$ref": "#/components/schemas/FeedPost"
+                  "nextCursor":
+                    "type":
+                      - "string"
+                      - "null"
+        "default":
+          "$ref": "#/components/responses/Error"
+      "parameters":
+        -
+          "name": "cursor"
+          "in": "query"
+          "schema":
+            "type": "string"
+            "maxLength": 256
+  "/me/analytics":
+    "get":
+      "operationId": "analytics"
+      "security":
+        -
+          "session": []
+      "responses":
+        "200":
+          "description": "Server-authorized response, private no-store"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Analytics"
+        "default":
+          "$ref": "#/components/responses/Error"
+      "description": "Owner only. Inclusive UTC dates, 1–366 days. Confirmed succeeded payments by completed_at, no provider IDs or PII. Active subscriptions are a current snapshot including canceled renewals with paid access."
+      "parameters":
+        -
+          "name": "from"
+          "in": "query"
+          "schema":
+            "type": "string"
+            "format": "date"
+        -
+          "name": "to"
+          "in": "query"
+          "schema":
+            "type": "string"
+            "format": "date"
+  "/posts/{id}/discussion":
+    "parameters":
+      -
+        "name": "id"
+        "in": "path"
+        "required": true
+        "schema":
+          "type": "string"
+          "pattern": "^[0-9]+$"
+    "get":
+      "operationId": "discussion"
+      "security":
+        -
+          "session": []
+      "responses":
+        "200":
+          "description": "Server-authorized response, private no-store"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "summary"
+                  - "comments"
+                  - "nextCursor"
+                "properties":
+                  "summary":
+                    "$ref": "#/components/schemas/InteractionSummary"
+                  "comments":
+                    "type": "array"
+                    "items":
+                      "$ref": "#/components/schemas/Comment"
+                  "nextCursor":
+                    "type":
+                      - "string"
+                      - "null"
+        "default":
+          "$ref": "#/components/responses/Error"
+      "parameters":
+        -
+          "name": "before"
+          "in": "query"
+          "schema":
+            "type": "string"
+            "pattern": "^[0-9]+$"
+  "/posts/{id}/like":
+    "parameters":
+      -
+        "name": "id"
+        "in": "path"
+        "required": true
+        "schema":
+          "type": "string"
+          "pattern": "^[0-9]+$"
+    "put":
+      "operationId": "likePost"
+      "security":
+        -
+          "session": []
+          "csrf": []
+      "responses":
+        "200":
+          "description": "Server-authorized response, private no-store"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "summary"
+                "properties":
+                  "summary":
+                    "$ref": "#/components/schemas/InteractionSummary"
+        "default":
+          "$ref": "#/components/responses/Error"
+    "delete":
+      "operationId": "unlikePost"
+      "security":
+        -
+          "session": []
+          "csrf": []
+      "responses":
+        "200":
+          "description": "Server-authorized response, private no-store"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "summary"
+                "properties":
+                  "summary":
+                    "$ref": "#/components/schemas/InteractionSummary"
+        "default":
+          "$ref": "#/components/responses/Error"
+  "/posts/{id}/comments":
+    "parameters":
+      -
+        "name": "id"
+        "in": "path"
+        "required": true
+        "schema":
+          "type": "string"
+          "pattern": "^[0-9]+$"
+    "post":
+      "operationId": "createComment"
+      "security":
+        -
+          "session": []
+          "csrf": []
+      "responses":
+        "default":
+          "$ref": "#/components/responses/Error"
+        "201":
+          "description": "Server-authorized response, private no-store"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "required":
+                  - "comment"
+                  - "summary"
+                "properties":
+                  "comment":
+                    "$ref": "#/components/schemas/Comment"
+                  "summary":
+                    "$ref": "#/components/schemas/InteractionSummary"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "required":
+                - "body"
+              "properties":
+                "body":
+                  "type": "string"
+                  "minLength": 1
+                  "maxLength": 2000
+              "additionalProperties": false
+  "/posts/{id}/comments/{commentID}":
+    "parameters":
+      -
+        "name": "id"
+        "in": "path"
+        "required": true
+        "schema":
+          "type": "string"
+          "pattern": "^[0-9]+$"
+      -
+        "name": "commentID"
+        "in": "path"
+        "required": true
+        "schema":
+          "type": "string"
+          "pattern": "^[0-9]+$"
+    "delete":
+      "operationId": "deleteComment"
+      "security":
+        -
+          "session": []
+          "csrf": []
+      "responses":
+        "200":
+          "description": "Server-authorized response, private no-store"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Message"
+        "default":
+          "$ref": "#/components/responses/Error"
+      "description": "Owner may delete their own comment even after losing paid access; response never discloses text."
 components:
   securitySchemes:
     session: { type: apiKey, in: cookie, name: etheyl_session }
@@ -512,6 +1017,262 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/PostInput'}
   schemas:
+    "InteractionSummary":
+      "type": "object"
+      "required":
+        - "likeCount"
+        - "liked"
+        - "commentCount"
+      "properties":
+        "likeCount":
+          "type": "integer"
+        "liked":
+          "type": "boolean"
+        "commentCount":
+          "type": "integer"
+    "Comment":
+      "type": "object"
+      "required":
+        - "id"
+        - "postId"
+        - "nickname"
+        - "body"
+        - "createdAt"
+        - "own"
+      "properties":
+        "id":
+          "type": "string"
+        "postId":
+          "type": "string"
+        "nickname":
+          "type": "string"
+        "body":
+          "type": "string"
+        "createdAt":
+          "type": "string"
+          "format": "date-time"
+        "own":
+          "type": "boolean"
+    "FeedPost":
+      "allOf":
+        -
+          "$ref": "#/components/schemas/PostSummary"
+        -
+          "type": "object"
+          "required":
+            - "authorName"
+            - "canRead"
+          "properties":
+            "authorName":
+              "type": "string"
+            "canRead":
+              "type": "boolean"
+    "AnalyticsDay":
+      "type": "object"
+      "required":
+        - "date"
+        - "paymentCount"
+        - "amountKopecks"
+      "properties":
+        "date":
+          "type": "string"
+          "format": "date"
+        "paymentCount":
+          "type": "integer"
+        "amountKopecks":
+          "type": "integer"
+    "AnalyticsTier":
+      "type": "object"
+      "required":
+        - "id"
+        - "name"
+        - "archived"
+        - "activeSubscriptions"
+      "properties":
+        "id":
+          "type": "string"
+        "name":
+          "type": "string"
+        "archived":
+          "type": "boolean"
+        "activeSubscriptions":
+          "type": "integer"
+    "Analytics":
+      "type": "object"
+      "required":
+        - "from"
+        - "to"
+        - "timezone"
+        - "currency"
+        - "test"
+        - "paymentCount"
+        - "amountKopecks"
+        - "activeSubscriptions"
+        - "daily"
+        - "tiers"
+        - "asOf"
+      "properties":
+        "from":
+          "type": "string"
+          "format": "date"
+        "to":
+          "type": "string"
+          "format": "date"
+        "timezone":
+          "type": "string"
+          "const": "UTC"
+        "currency":
+          "type": "string"
+          "const": "RUB"
+        "test":
+          "type": "boolean"
+          "const": true
+        "paymentCount":
+          "type": "integer"
+        "amountKopecks":
+          "type": "integer"
+        "activeSubscriptions":
+          "type": "integer"
+        "daily":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/AnalyticsDay"
+        "tiers":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/AnalyticsTier"
+        "asOf":
+          "type": "string"
+          "format": "date-time"
+    BillingTierInput:
+      {
+        "type": "object",
+        "required": ["tierId", "priceKopecks"],
+        "properties":
+          {
+            "tierId": { "type": "string" },
+            "priceKopecks":
+              { "type": "integer", "minimum": 100, "maximum": 100000000 },
+          },
+      }
+    Payment:
+      {
+        "type": "object",
+        "required":
+          [
+            "id",
+            "agreementId",
+            "status",
+            "amountKopecks",
+            "confirmationUrl",
+            "renewal",
+            "test",
+            "createdAt",
+            "periodStart",
+            "periodEnd",
+            "failureCode",
+          ],
+        "properties":
+          {
+            "id": { "type": "string" },
+            "agreementId": { "type": "string" },
+            "status":
+              {
+                "type": "string",
+                "enum":
+                  ["queued", "pending", "succeeded", "canceled", "review"],
+              },
+            "amountKopecks": { "type": "integer" },
+            "confirmationUrl": { "type": "string" },
+            "renewal": { "type": "boolean" },
+            "test": { "type": "boolean", "const": true },
+            "createdAt": { "type": "string", "format": "date-time" },
+            "periodStart":
+              { "type": ["string", "null"], "format": "date-time" },
+            "periodEnd": { "type": ["string", "null"], "format": "date-time" },
+            "failureCode": { "type": "string" },
+          },
+      }
+    PaymentHistory:
+      {
+        "type": "object",
+        "required":
+          [
+            "id",
+            "agreementId",
+            "status",
+            "amountKopecks",
+            "renewal",
+            "test",
+            "createdAt",
+            "periodStart",
+            "periodEnd",
+            "failureCode",
+            "nickname",
+            "displayName",
+            "tierName",
+          ],
+        "properties":
+          {
+            "id": { "type": "string" },
+            "agreementId": { "type": "string" },
+            "status":
+              {
+                "type": "string",
+                "enum":
+                  ["queued", "pending", "succeeded", "canceled", "review"],
+              },
+            "amountKopecks": { "type": "integer" },
+            "renewal": { "type": "boolean" },
+            "test": { "type": "boolean", "const": true },
+            "createdAt": { "type": "string", "format": "date-time" },
+            "periodStart":
+              { "type": ["string", "null"], "format": "date-time" },
+            "periodEnd": { "type": ["string", "null"], "format": "date-time" },
+            "failureCode": { "type": "string" },
+            "nickname": { "type": "string" },
+            "displayName": { "type": "string" },
+            "tierName": { "type": "string" },
+          },
+      }
+    Subscription:
+      {
+        "type": "object",
+        "required":
+          [
+            "id",
+            "authorId",
+            "nickname",
+            "displayName",
+            "tierId",
+            "tierName",
+            "priceKopecks",
+            "autoRenew",
+            "paidUntil",
+            "nextTierId",
+            "nextPriceKopecks",
+            "nextTierName",
+            "stoppedReason",
+            "active",
+          ],
+        "properties":
+          {
+            "id": { "type": "string" },
+            "authorId": { "type": "string" },
+            "nickname": { "type": "string" },
+            "displayName": { "type": "string" },
+            "tierId": { "type": "string" },
+            "tierName": { "type": "string" },
+            "priceKopecks": { "type": "integer" },
+            "autoRenew": { "type": "boolean" },
+            "paidUntil": { "type": ["string", "null"], "format": "date-time" },
+            "nextTierId": { "type": ["string", "null"] },
+            "nextPriceKopecks": { "type": ["integer", "null"] },
+            "nextTierName": { "type": "string" },
+            "stoppedReason": { "type": "string" },
+            "active": { "type": "boolean" },
+          },
+      }
     PostInput:
       type: object
       additionalProperties: false
@@ -660,6 +1421,23 @@ components:
             code: { type: string }
             message: { type: string }
   responses:
+    Payment:
+      {
+        "description": "Test shop only; authoritative server verification",
+        "content":
+          {
+            "application/json":
+              {
+                "schema":
+                  {
+                    "type": "object",
+                    "required": ["payment"],
+                    "properties":
+                      { "payment": { "$ref": "#/components/schemas/Payment" } },
+                  },
+              },
+          },
+      }
     Post:
       description: Post with server-enforced content access
       content:

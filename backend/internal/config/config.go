@@ -11,6 +11,8 @@ import (
 )
 
 type Config struct {
+	YooKassaShopID string
+	YooKassaAPIKey string
 	DatabaseURL    string
 	OutboxKeys     string
 	RequestTimeout time.Duration
@@ -33,6 +35,8 @@ type Config struct {
 
 func Load() (Config, error) {
 	c := Config{
+		YooKassaShopID: strings.TrimSpace(os.Getenv("YOOKASSA_SHOP_ID")),
+		YooKassaAPIKey: strings.TrimSpace(os.Getenv("YOOKASSA_API_KEY")),
 		DatabaseURL:    os.Getenv("DATABASE_URL"),
 		S3Endpoint:     os.Getenv("S3_ENDPOINT"),
 		S3AccessKey:    os.Getenv("S3_ACCESS_KEY"),
@@ -50,6 +54,17 @@ func Load() (Config, error) {
 		SMTPUsername:   os.Getenv("SMTP_USERNAME"), SMTPPassword: os.Getenv("SMTP_PASSWORD"),
 		SMTPFrom:     cmp.Or(os.Getenv("SMTP_FROM"), "etheyl <noreply@etheyl.local>"),
 		SMTPInsecure: os.Getenv("SMTP_INSECURE") == "true",
+	}
+	if (c.YooKassaShopID == "") != (c.YooKassaAPIKey == "") {
+		return c, invalid("YOOKASSA_SHOP_ID and YOOKASSA_API_KEY must be configured together")
+	}
+	if c.YooKassaAPIKey != "" && !strings.HasPrefix(c.YooKassaAPIKey, "test_") && !strings.HasPrefix(c.YooKassaAPIKey, "secret_test_") {
+		return c, invalid("YOOKASSA_API_KEY must be a test shop key")
+	}
+	if c.YooKassaShopID != "" {
+		if _, err := strconv.ParseUint(c.YooKassaShopID, 10, 64); err != nil {
+			return c, invalid("YOOKASSA_SHOP_ID must be numeric")
+		}
 	}
 	for name, target := range map[string]*bool{"COOKIE_SECURE": &c.SecureCookies, "TRUST_PROXY": &c.TrustProxy, "SMTP_INSECURE": &c.SMTPInsecure, "S3_SECURE": &c.S3Secure} {
 		if value := os.Getenv(name); value != "" {

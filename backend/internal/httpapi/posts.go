@@ -41,7 +41,7 @@ func postSummary(id int64, nickname, title, teaser string, tier pgtype.Int8, pub
 		p.MinimumTierID = new(strconv.FormatInt(tier.Int64, 10))
 	}
 	if published.Valid {
-		p.PublishedAt = new(published.Time)
+		p.PublishedAt = new(published.Time.UTC())
 	}
 	return p
 }

@@ -47,8 +47,8 @@
 				{#if owner}<Button href="/account/tiers" variant="link">Настроить уровни</Button>{/if}
 			</div>
 			{#if data.tiers.length}<p class="form-note">
-					Каждый старший уровень включает доступ ко всем младшим. Оформление подписок и оплата пока
-					недоступны.
+					Каждый старший уровень включает доступ ко всем младшим. Оплата через тестовый магазин
+					ЮKassa.
 				</p>
 				{#each data.tiers as tier, index (tier.id)}<article class="tier-row">
 						<div class="tier-title">
@@ -62,6 +62,11 @@
 									.map((item) => item.name)
 									.join(', ')}.
 							</p>{/if}
+						{#if !owner && tier.priceKopecks >= 100}<Button
+								href={data.user
+									? `/authors/${data.profile.nickname}/subscribe?tier=${tier.id}`
+									: '/auth/login'}>Оформить подписку</Button
+							>{/if}
 					</article>{/each}
 			{:else}<Empty.Root
 					><Empty.Header

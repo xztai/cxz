@@ -78,7 +78,12 @@ func DeliverOne(ctx context.Context, pool *pgxpool.Pool, sender Sender, box *Cip
 	if err != nil {
 		return false, err
 	}
-	active, err := q.MailTokenActive(ctx, item.TokenHash)
+	var active bool
+	if item.Kind == "billing" {
+		active, err = q.BillingMailActive(ctx, item.RecipientUserID.Int64)
+	} else {
+		active, err = q.MailTokenActive(ctx, item.TokenHash)
+	}
 	if err != nil {
 		return true, err
 	}

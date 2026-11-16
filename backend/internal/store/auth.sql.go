@@ -12,8 +12,8 @@ import (
 )
 
 const cleanupMail = `-- name: CleanupMail :exec
-DELETE FROM mail_outbox WHERE expires_at <= now() OR NOT EXISTS
- (SELECT 1 FROM action_tokens WHERE token_hash = mail_outbox.token_hash AND expires_at > now())
+DELETE FROM mail_outbox WHERE expires_at <= now() OR (kind='action' AND NOT EXISTS
+ (SELECT 1 FROM action_tokens WHERE token_hash = mail_outbox.token_hash AND expires_at > now()))
 `
 
 func (q *Queries) CleanupMail(ctx context.Context) error {
@@ -184,7 +184,7 @@ func (q *Queries) FindActionToken(ctx context.Context, arg FindActionTokenParams
 }
 
 const lockMail = `-- name: LockMail :one
-SELECT id, recipient, subject, body, attempts, available_at, created_at, token_hash, expires_at, failed_at, failure_code FROM mail_outbox WHERE available_at <= now() AND failed_at IS NULL ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1
+SELECT id, recipient, subject, body, attempts, available_at, created_at, token_hash, expires_at, failed_at, failure_code, kind, recipient_user_id FROM mail_outbox WHERE available_at <= now() AND failed_at IS NULL ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1
 `
 
 func (q *Queries) LockMail(ctx context.Context) (MailOutbox, error) {
@@ -202,6 +202,8 @@ func (q *Queries) LockMail(ctx context.Context) (MailOutbox, error) {
 		&i.ExpiresAt,
 		&i.FailedAt,
 		&i.FailureCode,
+		&i.Kind,
+		&i.RecipientUserID,
 	)
 	return i, err
 }
@@ -345,9 +347,9 @@ func (q *Queries) RateLimit(ctx context.Context, key string) (int32, error) {
 const requeueMail = `-- name: RequeueMail :execrows
 UPDATE mail_outbox SET attempts = 0, failed_at = NULL, failure_code = '', available_at = now()
 WHERE mail_outbox.id = $1 AND failed_at IS NOT NULL AND expires_at > now()
-AND EXISTS (SELECT 1 FROM action_tokens JOIN users ON users.id = action_tokens.user_id
+AND ((mail_outbox.kind='billing' AND EXISTS (SELECT 1 FROM users WHERE id=mail_outbox.recipient_user_id AND NOT blocked AND email_verified)) OR EXISTS (SELECT 1 FROM action_tokens JOIN users ON users.id = action_tokens.user_id
  WHERE token_hash = mail_outbox.token_hash AND action_tokens.expires_at > now() AND NOT users.blocked
- AND ((purpose = 'verify' AND NOT users.email_verified) OR (purpose = 'reset' AND users.email_verified)))
+ AND ((purpose = 'verify' AND NOT users.email_verified) OR (purpose = 'reset' AND users.email_verified))))
 `
 
 func (q *Queries) RequeueMail(ctx context.Context, id int64) (int64, error) {

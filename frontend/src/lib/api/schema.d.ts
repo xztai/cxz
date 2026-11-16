@@ -535,10 +535,344 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/billing/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["checkout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/payments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get: operations["payment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["payments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["subscriptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/subscriptions/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["cancelSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/subscriptions/{id}/tier": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["changeSubscriptionTier"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/yookassa/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Server-to-server only, rejects Cookie and Origin. Event is a hint: authenticated GET verifies test, recipient, currency, amount and metadata. No user endpoint bypasses CSRF. */
+        post: operations["yooKassaWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["feed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Owner only. Inclusive UTC dates, 1–366 days. Confirmed succeeded payments by completed_at, no provider IDs or PII. Active subscriptions are a current snapshot including canceled renewals with paid access. */
+        get: operations["analytics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/posts/{id}/discussion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get: operations["discussion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/posts/{id}/like": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["likePost"];
+        post?: never;
+        delete: operations["unlikePost"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/posts/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createComment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/posts/{id}/comments/{commentID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                commentID: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Owner may delete their own comment even after losing paid access; response never discloses text. */
+        delete: operations["deleteComment"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        InteractionSummary: {
+            likeCount: number;
+            liked: boolean;
+            commentCount: number;
+        };
+        Comment: {
+            id: string;
+            postId: string;
+            nickname: string;
+            body: string;
+            /** Format: date-time */
+            createdAt: string;
+            own: boolean;
+        };
+        FeedPost: components["schemas"]["PostSummary"] & {
+            authorName: string;
+            canRead: boolean;
+        };
+        AnalyticsDay: {
+            /** Format: date */
+            date: string;
+            paymentCount: number;
+            amountKopecks: number;
+        };
+        AnalyticsTier: {
+            id: string;
+            name: string;
+            archived: boolean;
+            activeSubscriptions: number;
+        };
+        Analytics: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** @constant */
+            timezone: "UTC";
+            /** @constant */
+            currency: "RUB";
+            /** @constant */
+            test: true;
+            paymentCount: number;
+            amountKopecks: number;
+            activeSubscriptions: number;
+            daily: components["schemas"]["AnalyticsDay"][];
+            tiers: components["schemas"]["AnalyticsTier"][];
+            /** Format: date-time */
+            asOf: string;
+        };
+        BillingTierInput: {
+            tierId: string;
+            priceKopecks: number;
+        };
+        Payment: {
+            id: string;
+            agreementId: string;
+            /** @enum {string} */
+            status: "queued" | "pending" | "succeeded" | "canceled" | "review";
+            amountKopecks: number;
+            confirmationUrl: string;
+            renewal: boolean;
+            /** @constant */
+            test: true;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            periodStart: string | null;
+            /** Format: date-time */
+            periodEnd: string | null;
+            failureCode: string;
+        };
+        PaymentHistory: {
+            id: string;
+            agreementId: string;
+            /** @enum {string} */
+            status: "queued" | "pending" | "succeeded" | "canceled" | "review";
+            amountKopecks: number;
+            renewal: boolean;
+            /** @constant */
+            test: true;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            periodStart: string | null;
+            /** Format: date-time */
+            periodEnd: string | null;
+            failureCode: string;
+            nickname: string;
+            displayName: string;
+            tierName: string;
+        };
+        Subscription: {
+            id: string;
+            authorId: string;
+            nickname: string;
+            displayName: string;
+            tierId: string;
+            tierName: string;
+            priceKopecks: number;
+            autoRenew: boolean;
+            /** Format: date-time */
+            paidUntil: string | null;
+            nextTierId: string | null;
+            nextPriceKopecks: number | null;
+            nextTierName: string;
+            stoppedReason: string;
+            active: boolean;
+        };
         PostInput: {
             title: string;
             /** @description Explicit public plain text */
@@ -648,6 +982,17 @@ export interface components {
         };
     };
     responses: {
+        /** @description Test shop only; authoritative server verification */
+        Payment: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    payment: components["schemas"]["Payment"];
+                };
+            };
+        };
         /** @description Post with server-enforced content access */
         Post: {
             headers: {
@@ -1493,6 +1838,339 @@ export interface operations {
         responses: {
             200: components["responses"]["MediaBytes"];
             403: components["responses"]["Error"];
+            default: components["responses"]["Error"];
+        };
+    };
+    checkout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    tierId: string;
+                    priceKopecks: number;
+                    /** @description Explicit consent; false by default in UI */
+                    autoRenew: boolean;
+                };
+            };
+        };
+        responses: {
+            202: components["responses"]["Payment"];
+            default: components["responses"]["Error"];
+        };
+    };
+    payment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Payment"];
+            default: components["responses"]["Error"];
+        };
+    };
+    payments: {
+        parameters: {
+            query?: {
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Test shop only; authoritative server verification */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        payments: components["schemas"]["PaymentHistory"][];
+                        hasMore: boolean;
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    subscriptions: {
+        parameters: {
+            query?: {
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Test shop only; authoritative server verification */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        subscriptions: components["schemas"]["Subscription"][];
+                        hasMore: boolean;
+                        paymentsEnabled: boolean;
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    cancelSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Message"];
+            default: components["responses"]["Error"];
+        };
+    };
+    changeSubscriptionTier: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillingTierInput"];
+            };
+        };
+        responses: {
+            200: components["responses"]["Message"];
+            default: components["responses"]["Error"];
+        };
+    };
+    yooKassaWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    type: "notification";
+                    event: string;
+                    object: {
+                        id: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Message"];
+            default: components["responses"]["Error"];
+        };
+    };
+    feed: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-authorized response, private no-store */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        posts: components["schemas"]["FeedPost"][];
+                        nextCursor: string | null;
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    analytics: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-authorized response, private no-store */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Analytics"];
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    discussion: {
+        parameters: {
+            query?: {
+                before?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-authorized response, private no-store */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        summary: components["schemas"]["InteractionSummary"];
+                        comments: components["schemas"]["Comment"][];
+                        nextCursor: string | null;
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    likePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-authorized response, private no-store */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        summary: components["schemas"]["InteractionSummary"];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    unlikePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-authorized response, private no-store */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        summary: components["schemas"]["InteractionSummary"];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    createComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Server-authorized response, private no-store */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        comment: components["schemas"]["Comment"];
+                        summary: components["schemas"]["InteractionSummary"];
+                    };
+                };
+            };
+            default: components["responses"]["Error"];
+        };
+    };
+    deleteComment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                commentID: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-authorized response, private no-store */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
             default: components["responses"]["Error"];
         };
     };

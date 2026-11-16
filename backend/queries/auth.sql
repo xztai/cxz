@@ -78,8 +78,8 @@ DELETE FROM action_tokens WHERE expires_at <= now();
 DELETE FROM rate_limits WHERE expires_at <= now();
 
 -- name: CleanupMail :exec
-DELETE FROM mail_outbox WHERE expires_at <= now() OR NOT EXISTS
- (SELECT 1 FROM action_tokens WHERE token_hash = mail_outbox.token_hash AND expires_at > now());
+DELETE FROM mail_outbox WHERE expires_at <= now() OR (kind='action' AND NOT EXISTS
+ (SELECT 1 FROM action_tokens WHERE token_hash = mail_outbox.token_hash AND expires_at > now()));
 
 -- name: MailTokenActive :one
 SELECT EXISTS(SELECT 1 FROM action_tokens JOIN users ON users.id = action_tokens.user_id
@@ -92,9 +92,9 @@ UPDATE mail_outbox SET failed_at = now(), failure_code = 'decrypt' WHERE id = $1
 -- name: RequeueMail :execrows
 UPDATE mail_outbox SET attempts = 0, failed_at = NULL, failure_code = '', available_at = now()
 WHERE mail_outbox.id = $1 AND failed_at IS NOT NULL AND expires_at > now()
-AND EXISTS (SELECT 1 FROM action_tokens JOIN users ON users.id = action_tokens.user_id
+AND ((mail_outbox.kind='billing' AND EXISTS (SELECT 1 FROM users WHERE id=mail_outbox.recipient_user_id AND NOT blocked AND email_verified)) OR EXISTS (SELECT 1 FROM action_tokens JOIN users ON users.id = action_tokens.user_id
  WHERE token_hash = mail_outbox.token_hash AND action_tokens.expires_at > now() AND NOT users.blocked
- AND ((purpose = 'verify' AND NOT users.email_verified) OR (purpose = 'reset' AND users.email_verified)));
+ AND ((purpose = 'verify' AND NOT users.email_verified) OR (purpose = 'reset' AND users.email_verified))));
 
 -- name: QueueStats :one
 SELECT count(*) FILTER (WHERE failed_at IS NULL) AS pending,

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"etheyl.local/backend/internal/auth"
+	"etheyl.local/backend/internal/billing"
 	"etheyl.local/backend/internal/config"
 	"etheyl.local/backend/internal/httpapi"
 	"etheyl.local/backend/internal/mailqueue"
@@ -83,6 +84,24 @@ func run(logger *slog.Logger) error {
 		}
 		logger.Info("migrations applied")
 		return nil
+	case "reconcile-payment":
+		flags := flag.NewFlagSet("reconcile-payment", flag.ContinueOnError)
+		id := flags.String("provider-id", "", "ID платежа ЮKassa для серверной сверки")
+		if err := flags.Parse(os.Args[2:]); err != nil {
+			return err
+		}
+		if *id == "" {
+			return errors.New("provide --provider-id")
+		}
+		payments, err := billing.New(pool, cfg)
+		if err != nil {
+			return err
+		}
+		if err = payments.Webhook(ctx, *id); err != nil {
+			return err
+		}
+		logger.Info("payment reconciliation completed")
+		return nil
 	case "storage-init":
 		storage, err := media.New(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3Secure)
 		if err != nil {
@@ -119,6 +138,11 @@ func run(logger *slog.Logger) error {
 			workers.Go(func() { media.RunTempCleanup(ctx, logger) })
 		}
 		if command == "worker" {
+			payments, err := billing.New(pool, cfg)
+			if err != nil {
+				return err
+			}
+			workers.Go(func() { payments.Run(ctx, logger) })
 			if cfg.S3Endpoint != "" {
 				objects, err := media.New(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3Secure)
 				if err != nil {
@@ -165,7 +189,7 @@ func run(logger *slog.Logger) error {
 		}
 		return err
 	default:
-		return errors.New("usage: etheyl api|worker|migrate|admin|requeue-mail|healthcheck")
+		return errors.New("usage: etheyl api|worker|migrate|admin|requeue-mail|reconcile-payment|healthcheck")
 	}
 }
 

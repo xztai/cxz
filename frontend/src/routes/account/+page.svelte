@@ -96,11 +96,17 @@
 							<Empty.Media variant="icon"><BookOpen aria-hidden="true" /></Empty.Media>
 							<Empty.Title><h2>Здесь будут ваши истории</h2></Empty.Title>
 							<Empty.Description
-								>Находите интересных людей в каталоге авторов. Оформление подписок появится позже.</Empty.Description
+								>Поддерживайте авторов, управляйте подписками и читайте доступные публикации.</Empty.Description
 							>
 						</Empty.Header>
 						<Empty.Content
-							><Button href="/authors" variant="outline">Найти автора</Button></Empty.Content
+							><Button href="/account/feed">Моя лента</Button><Button
+								href="/account/subscriptions"
+								variant="outline">Мои подписки</Button
+							><Button href="/account/payments" variant="outline">История платежей</Button><Button
+								href="/authors"
+								variant="link">Найти автора</Button
+							></Empty.Content
 						>
 					</Empty.Root>
 				</Tabs.Content>
@@ -115,9 +121,11 @@
 						</Empty.Header>
 						<Empty.Content
 							><Button href="/account/posts">Публикации</Button><Button
-								href="/account/profile"
-								variant="outline">Оформить профиль</Button
-							><Button href="/account/tiers" variant="outline">Уровни подписки</Button
+								href="/account/analytics"
+								variant="outline">Аналитика автора</Button
+							><Button href="/account/profile" variant="outline">Оформить профиль</Button><Button
+								href="/account/tiers"
+								variant="outline">Уровни подписки</Button
 							></Empty.Content
 						>
 					</Empty.Root>

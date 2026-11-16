@@ -32,7 +32,16 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON users, sessions, action_tokens, rate_lim
 GRANT SELECT, INSERT, UPDATE, DELETE ON creator_profiles, profile_images, subscription_tiers TO etheyl_api;
 GRANT USAGE ON SEQUENCE subscription_tiers_id_seq TO etheyl_api;
 GRANT SELECT, INSERT, UPDATE, DELETE ON posts, post_media TO etheyl_api;
-GRANT SELECT ON subscriptions TO etheyl_api;
+GRANT SELECT, INSERT, DELETE ON post_likes,post_comments TO etheyl_api;
+GRANT USAGE ON SEQUENCE post_comments_id_seq TO etheyl_api;
+GRANT SELECT, INSERT, UPDATE ON subscriptions, billing_agreements, payments TO etheyl_api, etheyl_worker;
+GRANT USAGE ON SEQUENCE billing_agreements_id_seq TO etheyl_api, etheyl_worker;
+GRANT SELECT ON creator_profiles, subscription_tiers TO etheyl_worker;
+GRANT UPDATE (updated_at) ON creator_profiles TO etheyl_worker;
+GRANT UPDATE (used_at) ON subscription_tiers TO etheyl_worker;
+GRANT SELECT (email) ON users TO etheyl_worker;
+GRANT INSERT ON mail_outbox TO etheyl_worker;
+GRANT USAGE ON SEQUENCE mail_outbox_id_seq TO etheyl_worker;
 GRANT USAGE ON SEQUENCE posts_id_seq, post_media_id_seq TO etheyl_api;
 GRANT SELECT, UPDATE, DELETE ON post_media TO etheyl_worker;
 GRANT SELECT (object_key) ON profile_images TO etheyl_worker;
