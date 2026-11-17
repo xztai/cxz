@@ -143,7 +143,7 @@
 					Если адрес подходит для этого действия, мы отправили письмо. Проверьте почту и папку
 					«Спам».
 				</p>
-				<a href={resolve('/login')}>Перейти ко входу</a>{/if}
+				<a class="button button-primary" href={resolve('/login')}>Перейти ко входу</a>{/if}
 		{/if}
 	</div>
 	{#if !complete}
