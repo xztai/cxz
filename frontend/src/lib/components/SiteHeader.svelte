@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { invalidate } from '$app/navigation';
 	import { api, errorMessage } from '#lib/api/client.js';
 	import { getSession } from '#lib/session.svelte.js';
 	const session = getSession();
@@ -12,6 +13,7 @@
 		try {
 			await api.logout();
 			session.setUser(null);
+			await invalidate('studio:profile');
 		} catch (error) {
 			message = errorMessage(error);
 		} finally {
@@ -29,6 +31,7 @@
 		<nav aria-label="Основная навигация">
 			<a class="how-link" href={resolve('/#how-it-works')}>Как это работает</a>
 			<a href={resolve('/authors')}>Найти авторов</a>
+			{#if session.user}<a href={resolve('/studio')}>Студия</a>{/if}
 		</nav>
 		<div class="account-menu">
 			{#if session.user}
@@ -108,6 +111,7 @@
 		}
 		nav {
 			margin-left: auto;
+			gap: 12px;
 			font-size: 12px;
 		}
 		.how-link {
@@ -116,14 +120,29 @@
 		.account-menu {
 			margin-left: 0;
 			min-width: 0;
+			flex: none;
 			flex-wrap: wrap;
 			justify-content: flex-end;
 		}
 		.account-name {
-			font-size: 12px;
+			display: none;
 		}
 		.login-link {
 			padding: 8px 14px;
+		}
+	}
+	@media (max-width: 380px) {
+		.header-inner {
+			gap: 8px;
+		}
+		.wordmark {
+			font-size: 26px;
+		}
+		nav {
+			gap: 8px;
+		}
+		.login-link {
+			padding-inline: 11px;
 		}
 	}
 </style>

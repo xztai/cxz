@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
+	import AuthorProfileHeader from '#lib/components/AuthorProfileHeader.svelte';
 	import SiteHeader from '#lib/components/SiteHeader.svelte';
 	import { api, ApiError, errorMessage, type Profile } from '#lib/api/client.js';
 	import type { PageProps } from './$types';
@@ -40,25 +41,9 @@
 		{#if busy}<p>Загружаем страницу…</p>{:else if message}<h1>Не удалось открыть страницу</h1>
 			<p class="feedback error-feedback">{message}</p>
 			<button class="button button-outline" type="button" onclick={load}>Попробовать ещё раз</button
-			>{:else if profile}{#if profile.cover}<img
-					class="cover"
-					src={profile.cover.url}
-					alt="Обложка страницы автора"
-				/>{/if}
-			<div class="profile-heading">
-				{#if profile.avatar}<img
-						class="avatar"
-						src={profile.avatar.url}
-						alt=""
-						width="88"
-						height="88"
-					/>{/if}
-				<div>
-					<h1>{profile.displayName}</h1>
-					<p class="nickname">@{profile.nickname}</p>
-				</div>
-			</div>
-			<p class="description">{profile.description}</p>{/if}
+			>{:else if profile}
+			<AuthorProfileHeader {profile} />
+		{/if}
 	</div>
 </main>
 
@@ -68,39 +53,5 @@
 		color: var(--blue);
 		font-size: 13px;
 		margin-bottom: 30px;
-	}
-	.cover {
-		width: 100%;
-		max-height: 320px;
-		object-fit: cover;
-		border-radius: 16px;
-		margin-bottom: 30px;
-	}
-	.profile-heading {
-		display: flex;
-		align-items: center;
-		gap: 24px;
-		overflow-wrap: anywhere;
-	}
-	.profile-heading h1 {
-		margin-bottom: 10px;
-	}
-	.avatar {
-		width: 88px;
-		height: 88px;
-		object-fit: cover;
-		border-radius: 16px;
-	}
-	.nickname {
-		color: var(--muted);
-		font-size: 14px;
-	}
-	.description {
-		white-space: pre-wrap;
-		overflow-wrap: anywhere;
-		max-width: 720px;
-		font-size: 16px;
-		line-height: 1.8;
-		margin-top: 32px;
 	}
 </style>

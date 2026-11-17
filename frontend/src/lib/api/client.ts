@@ -2,6 +2,14 @@ import type { components, operations } from './schema';
 
 export type User = components['schemas']['User'];
 export type Profile = components['schemas']['Profile'];
+export type ProfileInput = components['schemas']['ProfileInput'];
+export type ProfileImageKind = operations['uploadProfileImage']['parameters']['path']['kind'];
+export type Tier = components['schemas']['Tier'];
+export type TierInput = components['schemas']['TierInput'];
+export type Post = components['schemas']['Post'];
+export type PostInput = components['schemas']['PostInput'];
+export type PostSummary = components['schemas']['PostSummary'];
+export type Analytics = components['schemas']['Analytics'];
 export type RegisterInput = components['schemas']['Register'];
 type Result<K extends keyof operations, S extends number> = operations[K] extends {
 	responses: Record<S, { content: { 'application/json': infer T } }>;
@@ -19,21 +27,37 @@ export class ApiError extends Error {
 	}
 }
 
-async function request<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
+type RequestOptions = {
+	body?: unknown;
+	signal?: AbortSignal;
+	method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+	fetcher?: typeof fetch;
+};
+
+async function request<T>(
+	path: string,
+	{
+		body,
+		signal,
+		method = body === undefined ? 'GET' : 'POST',
+		fetcher = fetch
+	}: RequestOptions = {}
+): Promise<T> {
 	const headers = new Headers({ Accept: 'application/json' });
-	if (body !== undefined) {
-		const csrf = await request<Result<'csrf', 200>>('/auth/csrf');
+	const rawBody = body instanceof Blob ? body : undefined;
+	if (method !== 'GET') {
+		const csrf = await request<Result<'csrf', 200>>('/auth/csrf', { fetcher });
 		headers.set('X-CSRF-Token', csrf.token);
-		headers.set('Content-Type', 'application/json');
+		if (body !== undefined) headers.set('Content-Type', rawBody?.type ?? 'application/json');
 	}
 	let response: Response;
 	try {
-		response = await fetch(`/api/v1${path}`, {
-			method: body === undefined ? 'GET' : 'POST',
+		response = await fetcher(`/api/v1${path}`, {
+			method,
 			credentials: 'same-origin',
 			cache: 'no-store',
 			headers,
-			body: body === undefined ? undefined : JSON.stringify(body),
+			body: rawBody ?? (body === undefined ? undefined : JSON.stringify(body)),
 			signal: signal
 				? AbortSignal.any([signal, AbortSignal.timeout(15000)])
 				: AbortSignal.timeout(15000)
@@ -59,34 +83,69 @@ async function request<T>(path: string, body?: unknown, signal?: AbortSignal): P
 
 export const api = {
 	me: () => request<Result<'me', 200>>('/me'),
-	logout: () => request<Result<'logout', 200>>('/auth/logout', {}),
-	register: (input: RegisterInput) => request<Result<'register', 202>>('/auth/register', input),
+	logout: () => request<Result<'logout', 200>>('/auth/logout', { body: {} }),
+	register: (input: RegisterInput) =>
+		request<Result<'register', 202>>('/auth/register', { body: input }),
 	login: (input: { email: string; password: string }) =>
-		request<Result<'login', 200>>('/auth/login', input),
+		request<Result<'login', 200>>('/auth/login', { body: input }),
 	resend: (email: string) =>
-		request<Result<'resendVerification', 202>>('/auth/resend-verification', { email }),
+		request<Result<'resendVerification', 202>>('/auth/resend-verification', { body: { email } }),
 	changeUnverifiedEmail: (
 		input: operations['changeUnverifiedEmail']['requestBody']['content']['application/json']
-	) => request<Result<'changeUnverifiedEmail', 202>>('/auth/change-unverified-email', input),
+	) =>
+		request<Result<'changeUnverifiedEmail', 202>>('/auth/change-unverified-email', { body: input }),
 	forgot: (email: string) =>
-		request<Result<'forgotPassword', 202>>('/auth/forgot-password', { email }),
+		request<Result<'forgotPassword', 202>>('/auth/forgot-password', { body: { email } }),
 	preview: (token: string) =>
-		request<Result<'previewVerification', 200>>('/auth/verify-email/preview', { token }),
-	verify: (token: string) => request<Result<'verifyEmail', 200>>('/auth/verify-email', { token }),
+		request<Result<'previewVerification', 200>>('/auth/verify-email/preview', { body: { token } }),
+	verify: (token: string) =>
+		request<Result<'verifyEmail', 200>>('/auth/verify-email', { body: { token } }),
 	reset: (token: string, password: string) =>
-		request<Result<'resetPassword', 200>>('/auth/reset-password', { token, password }),
+		request<Result<'resetPassword', 200>>('/auth/reset-password', { body: { token, password } }),
+	ownProfile: (fetcher?: typeof fetch) =>
+		request<Result<'ownProfile', 200>>('/me/profile', { fetcher }),
+	saveProfile: (input: ProfileInput) =>
+		request<Result<'saveProfile', 200>>('/me/profile', { body: input, method: 'PUT' }),
+	uploadProfileImage: (kind: ProfileImageKind, image: Blob) =>
+		request<Result<'uploadProfileImage', 200>>(`/me/profile/images/${kind}`, {
+			body: image,
+			method: 'PUT'
+		}),
+	removeProfileImage: (kind: ProfileImageKind) =>
+		request<Result<'removeProfileImage', 200>>(`/me/profile/images/${kind}`, { method: 'DELETE' }),
+	ownTiers: (fetcher?: typeof fetch) => request<Result<'ownTiers', 200>>('/me/tiers', { fetcher }),
+	createTier: (input: TierInput) =>
+		request<Result<'createTier', 201>>('/me/tiers', { body: input }),
+	ownPosts: (offset = 0, fetcher?: typeof fetch) =>
+		request<Result<'ownPosts', 200>>(offset ? `/me/posts?offset=${offset}` : '/me/posts', {
+			fetcher
+		}),
+	ownPost: (id: string, fetcher?: typeof fetch) =>
+		request<Result<'ownPost', 200>>(`/me/posts/${encodeURIComponent(id)}`, { fetcher }),
+	createPost: (input: PostInput) =>
+		request<Result<'createPost', 201>>('/me/posts', { body: input }),
+	updatePost: (id: string, input: PostInput) =>
+		request<Result<'updatePost', 200>>(`/me/posts/${encodeURIComponent(id)}`, {
+			body: input,
+			method: 'PUT'
+		}),
+	publishPost: (id: string) =>
+		request<Result<'publishPost', 200>>(`/me/posts/${encodeURIComponent(id)}/publish`, {
+			body: {}
+		}),
+	unpublishPost: (id: string) =>
+		request<Result<'unpublishPost', 200>>(`/me/posts/${encodeURIComponent(id)}/unpublish`, {
+			body: {}
+		}),
+	analytics: (fetcher?: typeof fetch) =>
+		request<Result<'analytics', 200>>('/me/analytics', { fetcher }),
 	authors: (q: string, offset: number, signal?: AbortSignal) =>
 		request<Result<'listAuthors', 200>>(
 			`/authors?${new URLSearchParams({ q, offset: String(offset) })}`,
-			undefined,
-			signal
+			{ signal }
 		),
 	author: (nickname: string, signal?: AbortSignal) =>
-		request<Result<'publicAuthor', 200>>(
-			`/authors/${encodeURIComponent(nickname)}`,
-			undefined,
-			signal
-		)
+		request<Result<'publicAuthor', 200>>(`/authors/${encodeURIComponent(nickname)}`, { signal })
 };
 
 export function errorMessage(error: unknown): string {
