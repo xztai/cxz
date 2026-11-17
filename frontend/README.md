@@ -27,6 +27,20 @@ backend email's `#token=…` fragment and immediately remove it from the URL.
 Verification previews the address and requires an explicit confirmation before
 consuming the token.
 
+## Docker
+
+Build from the repository root, matching the existing Compose configuration:
+
+```sh
+docker build -f frontend/Dockerfile -t etheyl-frontend .
+docker run --rm -p 127.0.0.1:3000:3000 -e ORIGIN=http://localhost:3000 etheyl-frontend
+```
+
+The image runs the SvelteKit Node server as a non-root user on port 3000 and
+provides `/health` for the Compose health check. Set `ORIGIN` to the exact public
+frontend URL when deploying behind a reverse proxy. Route `/api` to the backend
+on that same origin; `API_PROXY_TARGET` applies only to Vite dev and preview.
+
 ## Routes
 
 - `/`: landing, registration, check-email state and resend.
@@ -56,5 +70,4 @@ Browser tests start the production preview and mock API responses. They cover
 CSRF cookie/header transmission, exact password preservation, Unicode validation,
 recoverable failures, verification confirmation, discovery and responsive layout.
 They do not exercise a live database, SMTP delivery or payment flows. Production
-hosting still needs an appropriate SvelteKit adapter; the scaffold retains
-`adapter-auto`.
+builds use `adapter-node` and start with `node build`.
