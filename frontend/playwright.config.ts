@@ -1,31 +1,6 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-	testDir: './tests/e2e',
-	fullyParallel: false,
-	workers: 1,
-	retries: 0,
-	timeout: 60_000,
-	expect: { timeout: 10_000 },
-	reporter: process.env.CI ? [['line'], ['html', { open: 'never' }]] : 'list',
-	use: {
-		baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:8080',
-		trace: 'retain-on-failure',
-		screenshot: 'only-on-failure'
-	},
-	projects: [
-		{
-			name: 'desktop',
-			use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 1000 } }
-		},
-		{
-			name: 'mobile',
-			use: {
-				...devices['Desktop Chrome'],
-				viewport: { width: 390, height: 844 },
-				isMobile: true,
-				hasTouch: true
-			}
-		}
-	]
+	webServer: { command: 'npm run build && npm run preview', port: 4173 },
+	testMatch: '**/*.e2e.{ts,js}'
 });

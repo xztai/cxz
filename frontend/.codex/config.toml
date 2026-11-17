@@ -1,4 +1,0 @@
-[mcp_servers.svelte]
-command = "node"
-args = ["node_modules/@sveltejs/mcp/dist/index.mjs"]
-startup_timeout_sec = 30

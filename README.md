@@ -4,7 +4,7 @@ MVP сервиса авторских подписок: авторизация, 
 
 ## Запуск
 
-Нужны Docker Engine с Compose v2+ и Python 3 для генерации локальных секретов. Для проверок вне Docker — Go 1.27.4, Node 26.13.0 и pnpm 12.18.0. Версии и причины выбора описаны в [docs/versions.md](docs/versions.md).
+Нужны Docker Engine с Compose v2+ и Python 3 для генерации локальных секретов. Для проверок вне Docker — Go 1.27.4, Node 26.13.0 и pnpm 12.18.0
 
 ```sh
 make init
