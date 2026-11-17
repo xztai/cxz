@@ -22,12 +22,17 @@ jobs:
           POSTGRES_PASSWORD: etheyl_test
           POSTGRES_DB: etheyl_test
         ports: ['5432:5432']
-        options: --health-cmd 'pg_isready -U etheyl_test -d etheyl_test' --health-interval 5s --health-timeout 5s --health-retries 20
+        options: >-
+          --health-cmd "pg_isready -U etheyl_test -d etheyl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     env:
       TEST_DATABASE_URL: postgres://etheyl_test:etheyl_test@localhost:5432/etheyl_test?sslmode=disable
       TEST_S3_ENDPOINT: 127.0.0.1:9002
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        id: checkout
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
@@ -51,7 +56,7 @@ jobs:
         run: python3 ../scripts/restore-drill.py
       - name: golangci-lint v2.15.0
         run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./...
-      - if: always()
+      - if: always() && steps.checkout.outcome == 'success'
         run: docker compose -p etheyl-ci-storage -f ../compose.test.yaml down
   frontend:
     runs-on: ubuntu-24.04
