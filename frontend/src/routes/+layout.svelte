@@ -1,5 +1,6 @@
 <script lang="ts">
 	import './layout.css';
+	import '@fontsource-variable/manrope';
 	import favicon from '#lib/assets/favicon.svg';
 	import type { LayoutProps } from './$types';
 

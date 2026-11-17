@@ -1,0 +1,8 @@
+{
+  "tool": "image_gen.imagegen",
+  "created": "2026-11-17",
+  "assets": {
+    "frontend/static/artwork/garden.webp": "Create an original finished digital illustration for a creator-platform demo, landscape 3:2 composition, image only, no text, no logos, no UI, no border. A sunlit secret botanical greenhouse with open arched windows overlooking a fantastical pale stone city on cliffs, cascading small waterfalls and a distant bridge. In foreground an artist's open botanical sketchbook, a blue-and-white ceramic teacup, white magnolias, hanging violet wisteria and abundant green foliage. Painterly gouache and sophisticated animated-film background art, confident brushwork, fresh pale sky blue, rich green, ivory and touches of lilac. Strong readable composition, bright natural daylight, calm imaginative world. It must feel like an illustrator's original portfolio work, not a photo, no people.",
+    "frontend/static/artwork/ceramic-cat.webp": "Create an original high-quality 3D artwork render for a creator-platform demonstration. Image only, no typography, no logos, no UI. A delightful small sculpted ceramic cat-shaped planter with a single fresh green sprout growing from its back. Cream glazed porcelain with delicate cobalt blue botanical flower and leaf designs, crackle glaze, sculpted smiling closed eyes and tiny rounded paws. Three-quarter view with curled tail visible, on a warm light wood plinth, muted sage studio background and soft daylight, realistic crafted PBR materials, subtle depth of field. Full object visible, wide 3:2 frame with breathing space. This is a fictional digital object and original design, not a product advertisement."
+  }
+}

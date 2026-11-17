@@ -8,6 +8,7 @@
 		"#lib/*": "./src/lib/*"
 	},
 	"scripts": {
+		"generate:api": "openapi-typescript ../docs/openapi.yaml -o src/lib/api/schema.d.ts && prettier --write src/lib/api/schema.d.ts",
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
@@ -33,6 +34,7 @@
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.19.0",
 		"globals": "^17.6.0",
+		"openapi-typescript": "^7.13.0",
 		"playwright": "^1.60.0",
 		"prettier": "^3.8.3",
 		"prettier-plugin-svelte": "^4.1.0",
@@ -45,5 +47,8 @@
 		"vite": "^8.3.0",
 		"vitest": "^4.1.8",
 		"vitest-browser-svelte": "^2.1.1"
+	},
+	"dependencies": {
+		"@fontsource-variable/manrope": "^5.3.0"
 	}
 }
