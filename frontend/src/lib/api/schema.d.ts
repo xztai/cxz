@@ -190,7 +190,7 @@ export interface paths {
 		};
 		get?: never;
 		put?: never;
-		/** @description Rejects the current password with 422 password_unchanged; the action token and existing sessions remain valid for a corrected submission. */
+		/** @description Revokes all sessions and clears failed-login limits for the requesting IP/email pair and account risk on success. Rejects the current password with 422 password_unchanged; the action token, existing sessions and failed-login limits remain valid for a corrected submission. */
 		post: operations['resetPassword'];
 		delete?: never;
 		options?: never;

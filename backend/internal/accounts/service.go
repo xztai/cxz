@@ -291,7 +291,7 @@ func (s *Service) queueAction(ctx context.Context, q *store.Queries, u store.Use
 	return q.QueueMail(ctx, store.QueueMailParams{Recipient: u.Email, Subject: subject, Body: encrypted, TokenHash: auth.Digest(token), ExpiresAt: expires})
 }
 
-func (s *Service) Consume(ctx context.Context, token, purpose, password, oldSession string) (Session, error) {
+func (s *Service) Consume(ctx context.Context, token, purpose, password, oldSession, ip string) (Session, error) {
 	if purpose != "verify" && purpose != "reset" {
 		return Session{}, invalidToken()
 	}
@@ -353,6 +353,12 @@ func (s *Service) Consume(ctx context.Context, token, purpose, password, oldSess
 		}
 		if err == nil {
 			err = q.RevokeSessions(ctx, u.ID)
+		}
+		if err == nil {
+			err = q.ClearRateLimit(ctx, auth.Digest("login:"+ip+":"+u.Email))
+		}
+		if err == nil {
+			err = q.ClearRateLimit(ctx, auth.Digest("risk:"+u.Email))
 		}
 	}
 	if err != nil {

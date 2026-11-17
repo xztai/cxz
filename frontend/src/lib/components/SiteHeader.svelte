@@ -1,5 +1,23 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { api, errorMessage } from '#lib/api/client.js';
+	import { getSession } from '#lib/session.svelte.js';
+	const session = getSession();
+	let busy = $state(false);
+	let message = $state('');
+	async function logout() {
+		if (busy) return;
+		busy = true;
+		message = '';
+		try {
+			await api.logout();
+			session.setUser(null);
+		} catch (error) {
+			message = errorMessage(error);
+		} finally {
+			busy = false;
+		}
+	}
 </script>
 
 <a class="skip-link" href="#main">Перейти к содержимому</a>
@@ -12,8 +30,21 @@
 			<a class="how-link" href={resolve('/#how-it-works')}>Как это работает</a>
 			<a href={resolve('/authors')}>Найти авторов</a>
 		</nav>
-		<a class="button button-outline login-link" href={resolve('/login')}>Войти</a>
+		<div class="account-menu">
+			{#if session.user}
+				<span class="account-name">@{session.user.nickname}</span>
+				<button
+					class="button button-outline login-link"
+					type="button"
+					disabled={busy}
+					onclick={logout}>{busy ? 'Выходим…' : 'Выйти'}</button
+				>
+			{:else if session.ready}
+				<a class="button button-outline login-link" href={resolve('/login')}>Войти</a>
+			{/if}
+		</div>
 	</div>
+	{#if message}<p class="shell feedback error-feedback" role="alert">{message}</p>{/if}
 </header>
 
 <style>
@@ -50,8 +81,19 @@
 	nav a:hover {
 		color: var(--blue);
 	}
-	.login-link {
+	.account-menu {
 		margin-left: auto;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		min-width: 92px;
+	}
+	.account-name {
+		font-size: 14px;
+		font-weight: 600;
+		overflow-wrap: anywhere;
+	}
+	.login-link {
 		min-height: 42px;
 		padding: 9px 25px;
 		font-size: 14px;
@@ -71,8 +113,16 @@
 		.how-link {
 			display: none;
 		}
-		.login-link {
+		.account-menu {
 			margin-left: 0;
+			min-width: 0;
+			flex-wrap: wrap;
+			justify-content: flex-end;
+		}
+		.account-name {
+			font-size: 12px;
+		}
+		.login-link {
 			padding: 8px 14px;
 		}
 	}

@@ -9,6 +9,10 @@ const user = {
 	isAdmin: false
 };
 
+test.beforeEach(async ({ page }) => {
+	await page.route('**/api/v1/me', (route) => route.fulfill({ json: { user: null } }));
+});
+
 test('credentials cannot be submitted before hydration or with JavaScript disabled', async ({
 	browser
 }) => {
@@ -139,6 +143,7 @@ test('network failure allows retry and submitting blocks duplicate requests', as
 
 test('login uses CSRF and opens an authenticated success state', async ({ page }) => {
 	await mockCsrf(page);
+	await page.route('**/api/v1/auth/logout', (route) => route.fulfill({ json: { message: 'ok' } }));
 	await page.route('**/api/v1/auth/login', async (route) => {
 		expect(route.request().headers()['x-csrf-token']).toBe(csrf);
 		expect(route.request().postDataJSON().password).toBe('original password');
@@ -149,6 +154,74 @@ test('login uses CSRF and opens an authenticated success state', async ({ page }
 	await page.getByLabel('Пароль', { exact: true }).fill('original password');
 	await page.getByRole('button', { name: 'Войти', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Вы вошли в аккаунт' })).toBeVisible();
+	await expect(page.locator('header')).toContainText('@artist');
+	await expect(
+		page.locator('header').getByRole('link', { name: 'Войти', exact: true })
+	).toHaveCount(0);
+	await expect(page.locator('main form')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Выйти', exact: true }).click();
+	await expect(page.getByLabel('Email', { exact: true })).toBeEnabled();
+	await expect(page.getByRole('link', { name: 'Забыли пароль?' })).toBeVisible();
+});
+
+test('restores the session on refresh and retries a failed logout without losing it', async ({
+	page
+}) => {
+	let signedIn = true;
+	let failLogout = true;
+	await mockCsrf(page);
+	await page.route('**/api/v1/me', (route) =>
+		route.fulfill({ json: { user: signedIn ? user : null } })
+	);
+	await page.route('**/api/v1/auth/logout', (route) => {
+		expect(route.request().method()).toBe('POST');
+		expect(route.request().headers()['x-csrf-token']).toBe(csrf);
+		if (failLogout) {
+			failLogout = false;
+			return route.fulfill({ status: 503, json: { error: { code: 'unavailable' } } });
+		}
+		signedIn = false;
+		return route.fulfill({ json: { message: 'ok' } });
+	});
+	await page.goto('/login');
+	await expect(page.getByRole('heading', { name: 'Вы вошли в аккаунт' })).toBeVisible();
+	await expect(page.locator('main form')).toHaveCount(0);
+	await page.reload();
+	await expect(page.locator('header')).toContainText('@artist');
+	await page.getByRole('button', { name: 'Выйти', exact: true }).click();
+	await expect(page.locator('header').getByRole('alert')).toContainText(
+		'Сервис временно недоступен'
+	);
+	await expect(page.locator('header')).toContainText('@artist');
+	await page.getByRole('button', { name: 'Выйти', exact: true }).click();
+	await expect(
+		page.locator('header').getByRole('link', { name: 'Войти', exact: true })
+	).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'С возвращением' })).toBeVisible();
+	await expect(page.getByLabel('Email', { exact: true })).toBeEnabled();
+});
+
+test('a stale session response cannot overwrite a successful login', async ({ page }) => {
+	let release = () => {};
+	const hold = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await page.route('**/api/v1/me', async (route) => {
+		await hold;
+		await route.fulfill({ json: { user: null } });
+	});
+	await mockCsrf(page);
+	await page.route('**/api/v1/auth/login', (route) => route.fulfill({ json: { user } }));
+	await page.goto('/login');
+	await page.getByLabel('Email', { exact: true }).fill(user.email);
+	await page.getByLabel('Пароль', { exact: true }).fill('original password');
+	await page.getByRole('button', { name: 'Войти', exact: true }).click();
+	await expect(page.locator('header')).toContainText('@artist');
+	const restored = page.waitForResponse('**/api/v1/me');
+	release();
+	await restored;
+	await expect(page.getByRole('heading', { name: 'Вы вошли в аккаунт' })).toBeVisible();
+	await expect(page.locator('header')).toContainText('@artist');
 });
 
 test('verification clears the URL fragment, previews without consuming and requires confirmation', async ({
@@ -156,6 +229,12 @@ test('verification clears the URL fragment, previews without consuming and requi
 }) => {
 	await mockCsrf(page);
 	let verified = false;
+	await page.route('**/api/v1/me', (route) =>
+		route.fulfill({ json: { user: verified ? user : null } })
+	);
+	await page.route('**/api/v1/authors?**', (route) =>
+		route.fulfill({ json: { authors: [], hasMore: false } })
+	);
 	await page.route('**/api/v1/auth/verify-email/preview', async (route) => {
 		expect(route.request().postDataJSON()).toEqual({ token: csrf });
 		await route.fulfill({ json: { email: user.email } });
@@ -171,6 +250,11 @@ test('verification clears the URL fragment, previews without consuming and requi
 	expect(verified).toBe(false);
 	await page.getByRole('button', { name: 'Подтвердить email и войти' }).click();
 	await expect(page.getByRole('heading', { name: 'Email подтверждён' })).toBeVisible();
+	await expect(page.locator('header')).toContainText('@artist');
+	await page.getByRole('link', { name: 'Найти авторов', exact: true }).last().click();
+	await expect(page.locator('header')).toContainText('@artist');
+	await page.reload();
+	await expect(page.locator('header')).toContainText('@artist');
 });
 
 test('expired verification offers a working resend destination', async ({ page }) => {

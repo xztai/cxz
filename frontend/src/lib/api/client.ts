@@ -58,6 +58,8 @@ async function request<T>(path: string, body?: unknown, signal?: AbortSignal): P
 }
 
 export const api = {
+	me: () => request<Result<'me', 200>>('/me'),
+	logout: () => request<Result<'logout', 200>>('/auth/logout', {}),
 	register: (input: RegisterInput) => request<Result<'register', 202>>('/auth/register', input),
 	login: (input: { email: string; password: string }) =>
 		request<Result<'login', 200>>('/auth/login', input),

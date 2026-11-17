@@ -261,6 +261,47 @@ func TestIntegrationAuthLifecycle(t *testing.T) {
 	}
 }
 
+func TestIntegrationPasswordResetClearsFailedLoginLimits(t *testing.T) {
+	h := setup(t)
+	h.registerAndVerify()
+	keys := []string{
+		"login:127.0.0.1:person@example.com",
+		"risk:person@example.com",
+		"login:203.0.113.10:person@example.com",
+		"login:127.0.0.1:other@example.com",
+	}
+	for _, key := range keys {
+		for range 10 {
+			if _, err := h.server.q.RateLimit(t.Context(), auth.Digest(key)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	h.expect("POST", "/auth/login", loginBody, 429)
+	h.expect("POST", "/auth/forgot-password", `{"email":"person@example.com"}`, 202)
+	token := h.mailToken("reset")
+	h.expect("POST", "/auth/reset-password", `{"token":"`+strings.Repeat("a", 43)+`","password":"replacement password 456"}`, 400)
+	h.expect("POST", "/auth/reset-password", `{"token":"`+token+`","password":"original password 123"}`, 422)
+	for _, key := range keys {
+		if hits, err := h.server.q.FailedLoginHits(t.Context(), auth.Digest(key)); err != nil || hits != 10 {
+			t.Fatal("rejected reset changed the failed-login limit")
+		}
+	}
+	// Forwarded IPs are ignored unless proxy trust is explicitly enabled.
+	h.ip = "203.0.113.10"
+	h.expect("POST", "/auth/reset-password", `{"token":"`+token+`","password":"replacement password 456"}`, 200)
+	for i, key := range keys {
+		want := int32(10)
+		if i < 2 {
+			want = 0
+		}
+		if hits, err := h.server.q.FailedLoginHits(t.Context(), auth.Digest(key)); err != nil || hits != want {
+			t.Fatal("successful reset did not clear only the current login limit and account risk")
+		}
+	}
+	h.expect("POST", "/auth/login", `{"email":"person@example.com","password":"replacement password 456"}`, 200)
+}
+
 func TestIntegrationCSRFExpiryAndLimits(t *testing.T) {
 	h := setup(t)
 	if status, _, _ := h.call("POST", "/auth/login", loginBody, false); status != 403 {

@@ -487,7 +487,7 @@ func (s *Server) reset(w http.ResponseWriter, r *http.Request) error {
 	return s.consumeAction(w, r, in.Token, "reset", in.Password)
 }
 func (s *Server) consumeAction(w http.ResponseWriter, r *http.Request, token, purpose, password string) error {
-	result, err := s.accounts.Consume(r.Context(), token, purpose, password, s.oldSession(r))
+	result, err := s.accounts.Consume(r.Context(), token, purpose, password, s.oldSession(r), s.clientIP(r))
 	if err != nil {
 		return err
 	}

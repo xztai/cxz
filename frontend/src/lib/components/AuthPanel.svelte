@@ -5,6 +5,8 @@
 	import { emailError, passwordError } from '#lib/validation.js';
 	import PasswordField from './PasswordField.svelte';
 	import Icon from './Icon.svelte';
+	import { getSession } from '#lib/session.svelte.js';
+	const session = getSession();
 	let { mode }: { mode: 'login' | 'verify' | 'resend' | 'forgot' | 'reset' } = $props();
 	let email = $state('');
 	let password = $state('');
@@ -14,7 +16,9 @@
 	let ready = $state(false);
 	let message = $state('');
 	let success = $state(false);
-	let user = $state<User | null>(null);
+	let confirmedUser = $state<User | null>(null);
+	let user = $derived(mode === 'login' ? session.user : confirmedUser);
+	let complete = $derived(mode === 'login' ? user !== null : success);
 	let errors = $state({ email: '', password: '' });
 	const titles = {
 		login: 'С возвращением',
@@ -24,7 +28,7 @@
 		reset: 'Новый пароль'
 	};
 	let title = $derived(
-		success
+		complete
 			? user
 				? mode === 'verify'
 					? 'Email подтверждён'
@@ -84,11 +88,17 @@
 		}
 		busy = true;
 		try {
-			if (mode === 'login') user = (await api.login({ email: email.trim(), password })).user;
-			else if (mode === 'verify') user = (await api.verify(token)).user;
-			else if (mode === 'resend') await api.resend(email.trim());
+			if (mode === 'login') {
+				session.setUser((await api.login({ email: email.trim(), password })).user);
+			} else if (mode === 'verify') {
+				confirmedUser = (await api.verify(token)).user;
+				session.setUser(confirmedUser);
+			} else if (mode === 'resend') await api.resend(email.trim());
 			else if (mode === 'forgot') await api.forgot(email.trim());
-			else await api.reset(token, password);
+			else {
+				await api.reset(token, password);
+				session.setUser(null);
+			}
 			success = true;
 			password = '';
 			token = '';
@@ -109,12 +119,12 @@
 <div class="auth-panel">
 	<noscript><p class="feedback">Для работы с аккаунтом включите JavaScript в браузере.</p></noscript
 	>
-	{#if success}<span class="auth-symbol"
+	{#if complete}<span class="auth-symbol"
 			><Icon name={user || mode === 'reset' ? 'check' : 'mail'} size={30} /></span
 		>{/if}
 	<h1>{title}</h1>
 	<div aria-live="polite">
-		{#if success}
+		{#if complete}
 			{#if user}<p class="intro">
 					Добро пожаловать, <strong>{user.nickname}</strong>. Теперь можно знакомиться с авторами и
 					их работами.
@@ -131,7 +141,7 @@
 				<a href={resolve('/login')}>Перейти ко входу</a>{/if}
 		{/if}
 	</div>
-	{#if !success}
+	{#if !complete}
 		{#if mode === 'login'}<p class="intro">Войдите, чтобы продолжить.</p>
 		{:else if mode === 'verify'}<p class="intro">
 				{busy && !ready
