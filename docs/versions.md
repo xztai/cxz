@@ -17,13 +17,6 @@
 | LayerChart                   | `2.10.1`, добавлен на этапе 5                    |
 | PostgreSQL и сервисы Compose | Точные теги и digest в `compose.yaml`            |
 
-## Генерация OpenAPI
-
-`frontend/tools/openapi` — отдельный workspace с TypeScript 5.9.3 для
-`openapi-typescript@7.13.0`: генератор пока требует ветку TypeScript 5, тогда как
-приложение использует TypeScript 6. Запускайте `pnpm generate:api`, не переносите
-генератор в основной workspace и не редактируйте `schema.d.ts` вручную.
-
 ## Аналитика
 
 shadcn-svelte Chart использует `layerchart@2.10.1`, совместимый с текущими
