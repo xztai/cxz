@@ -1,0 +1,392 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-17T01:15:52Z",
+  "title": "Design System: etheyl",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "tonalRamp": [
+          "oklch(15% 0.0076 271.7)",
+          "oklch(27% 0.0136 271.7)",
+          "oklch(39% 0.0197 271.7)",
+          "oklch(51% 0.0202 271.7)",
+          "oklch(63% 0.0202 271.7)",
+          "oklch(75% 0.0202 271.7)",
+          "oklch(87% 0.0105 271.7)",
+          "oklch(95% 0.0040 271.7)"
+        ],
+        "rampSource": "Synthesized OKLCH preview ramp; the DESIGN.md token remains the implemented value."
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted Slate",
+        "tonalRamp": [
+          "oklch(15% 0.0104 270.0)",
+          "oklch(27% 0.0188 270.0)",
+          "oklch(39% 0.0271 270.0)",
+          "oklch(51% 0.0278 270.0)",
+          "oklch(63% 0.0278 270.0)",
+          "oklch(75% 0.0278 270.0)",
+          "oklch(87% 0.0145 270.0)",
+          "oklch(95% 0.0056 270.0)"
+        ],
+        "rampSource": "Synthesized OKLCH preview ramp; the DESIGN.md token remains the implemented value."
+      },
+      "blue": {
+        "role": "primary",
+        "displayName": "Action Blue",
+        "tonalRamp": [
+          "oklch(15% 0.0809 265.8)",
+          "oklch(27% 0.1456 265.8)",
+          "oklch(39% 0.2103 265.8)",
+          "oklch(51% 0.2157 265.8)",
+          "oklch(63% 0.2157 265.8)",
+          "oklch(75% 0.2157 265.8)",
+          "oklch(87% 0.1122 265.8)",
+          "oklch(95% 0.0431 265.8)"
+        ],
+        "rampSource": "Synthesized OKLCH preview ramp; the DESIGN.md token remains the implemented value."
+      },
+      "blue-hover": {
+        "role": "primary",
+        "displayName": "Deep Action Blue",
+        "tonalRamp": [
+          "oklch(15% 0.0731 265.5)",
+          "oklch(27% 0.1317 265.5)",
+          "oklch(39% 0.1902 265.5)",
+          "oklch(51% 0.1951 265.5)",
+          "oklch(63% 0.1951 265.5)",
+          "oklch(75% 0.1951 265.5)",
+          "oklch(87% 0.1014 265.5)",
+          "oklch(95% 0.0390 265.5)"
+        ],
+        "rampSource": "Synthesized OKLCH preview ramp; the DESIGN.md token remains the implemented value."
+      },
+      "blue-soft": {
+        "role": "primary",
+        "displayName": "Pale Blue",
+        "tonalRamp": [
+          "oklch(15% 0.0067 272.3)",
+          "oklch(27% 0.0121 272.3)",
+          "oklch(39% 0.0175 272.3)",
+          "oklch(51% 0.0179 272.3)",
+          "oklch(63% 0.0179 272.3)",
+          "oklch(75% 0.0179 272.3)",
+          "oklch(87% 0.0093 272.3)",
+          "oklch(95% 0.0036 272.3)"
+        ],
+        "rampSource": "Synthesized OKLCH preview ramp; the DESIGN.md token remains the implemented value."
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Cool Surface",
+        "tonalRamp": [
+          "oklch(15% 0.0020 275.0)",
+          "oklch(27% 0.0037 275.0)",
+          "oklch(39% 0.0053 275.0)",
+          "oklch(51% 0.0054 275.0)",
+          "oklch(63% 0.0054 275.0)",
+          "oklch(75% 0.0054 275.0)",
+          "oklch(87% 0.0028 275.0)",
+          "oklch(95% 0.0011 275.0)"
+        ],
+        "rampSource": "Synthesized OKLCH preview ramp; the DESIGN.md token remains the implemented value."
+      },
+      "white": {
+        "role": "neutral",
+        "displayName": "White",
+        "tonalRamp": [
+          "oklch(15% 0.0000 0.0)",
+          "oklch(27% 0.0000 0.0)",
+          "oklch(39% 0.0000 0.0)",
+          "oklch(51% 0.0000 0.0)",
+          "oklch(63% 0.0000 0.0)",
+          "oklch(75% 0.0000 0.0)",
+          "oklch(87% 0.0000 0.0)",
+          "oklch(95% 0.0000 0.0)"
+        ],
+        "rampSource": "Synthesized OKLCH preview ramp; the DESIGN.md token remains the implemented value."
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Soft Divider",
+        "tonalRamp": [
+          "oklch(15% 0.0046 276.1)",
+          "oklch(27% 0.0083 276.1)",
+          "oklch(39% 0.0120 276.1)",
+          "oklch(51% 0.0123 276.1)",
+          "oklch(63% 0.0123 276.1)",
+          "oklch(75% 0.0123 276.1)",
+          "oklch(87% 0.0064 276.1)",
+          "oklch(95% 0.0025 276.1)"
+        ],
+        "rampSource": "Synthesized OKLCH preview ramp; the DESIGN.md token remains the implemented value."
+      },
+      "error": {
+        "role": "semantic",
+        "displayName": "Error Red",
+        "tonalRamp": [
+          "oklch(15% 0.0634 19.6)",
+          "oklch(27% 0.1142 19.6)",
+          "oklch(39% 0.1649 19.6)",
+          "oklch(51% 0.1691 19.6)",
+          "oklch(63% 0.1691 19.6)",
+          "oklch(75% 0.1691 19.6)",
+          "oklch(87% 0.0879 19.6)",
+          "oklch(95% 0.0338 19.6)"
+        ],
+        "rampSource": "Synthesized OKLCH preview ramp; the DESIGN.md token remains the implemented value."
+      },
+      "field-line": {
+        "role": "neutral",
+        "displayName": "Field Stroke",
+        "tonalRamp": [
+          "oklch(15% 0.0112 268.3)",
+          "oklch(27% 0.0201 268.3)",
+          "oklch(39% 0.0291 268.3)",
+          "oklch(51% 0.0298 268.3)",
+          "oklch(63% 0.0298 268.3)",
+          "oklch(75% 0.0298 268.3)",
+          "oklch(87% 0.0155 268.3)",
+          "oklch(95% 0.0060 268.3)"
+        ],
+        "rampSource": "Synthesized OKLCH preview ramp; the DESIGN.md token remains the implemented value."
+      },
+      "placeholder": {
+        "role": "neutral",
+        "displayName": "Placeholder Slate",
+        "tonalRamp": [
+          "oklch(15% 0.0114 269.4)",
+          "oklch(27% 0.0204 269.4)",
+          "oklch(39% 0.0295 269.4)",
+          "oklch(51% 0.0303 269.4)",
+          "oklch(63% 0.0303 269.4)",
+          "oklch(75% 0.0303 269.4)",
+          "oklch(87% 0.0158 269.4)",
+          "oklch(95% 0.0061 269.4)"
+        ],
+        "rampSource": "Synthesized OKLCH preview ramp; the DESIGN.md token remains the implemented value."
+      },
+      "outline-line": {
+        "role": "neutral",
+        "displayName": "Outline Stroke",
+        "tonalRamp": [
+          "oklch(15% 0.0088 269.4)",
+          "oklch(27% 0.0158 269.4)",
+          "oklch(39% 0.0228 269.4)",
+          "oklch(51% 0.0234 269.4)",
+          "oklch(63% 0.0234 269.4)",
+          "oklch(75% 0.0234 269.4)",
+          "oklch(87% 0.0122 269.4)",
+          "oklch(95% 0.0047 269.4)"
+        ],
+        "rampSource": "Synthesized OKLCH preview ramp; the DESIGN.md token remains the implemented value."
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Landing headline at wide viewports; documented breakpoints override the size."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Major explanatory section headings."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Setup-step headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Explanatory copy and account introduction text."
+      },
+      "label": {
+        "displayName": "Field label",
+        "purpose": "Visible field labels."
+      },
+      "control": {
+        "displayName": "Action label",
+        "purpose": "Shared primary and outline button text."
+      },
+      "input": {
+        "displayName": "Input value",
+        "purpose": "Text and email input contents."
+      },
+      "hint": {
+        "displayName": "Hint and error",
+        "purpose": "Short instructions and field errors beneath controls."
+      }
+    },
+    "shadows": [
+      {
+        "name": "creator-demo",
+        "value": "0 16px 60px -16px #202e5a30, 0 3px 12px #202e5a0c",
+        "purpose": "Soft raised frame around the creator-page demonstration."
+      }
+    ],
+    "motion": [
+      {
+        "name": "button-state",
+        "value": "background 0.16s ease, border-color 0.16s ease",
+        "purpose": "Shared primary and outline button hover feedback."
+      },
+      {
+        "name": "anchor-scroll",
+        "value": "smooth",
+        "purpose": "Ordinary page anchor scrolling and return to registration."
+      },
+      {
+        "name": "faq-open-indicator",
+        "value": "rotate(45deg)",
+        "purpose": "Immediate open-state change of the SVG plus; no animated transition."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "scroll-behavior: auto; transition: none !important; animation: none !important",
+        "purpose": "Applied when prefers-reduced-motion is reduce, including pseudo-elements."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "landing-compact",
+        "value": "1100px",
+        "purpose": "Tighter opening gap, smaller demonstration art and explanation headings."
+      },
+      {
+        "name": "shell-compact",
+        "value": "1000px",
+        "purpose": "Shared horizontal gutters become 24px."
+      },
+      {
+        "name": "landing-stack",
+        "value": "950px",
+        "purpose": "Opening and FAQ become single-column; footer wraps."
+      },
+      {
+        "name": "header-mobile",
+        "value": "640px",
+        "purpose": "Shared gutters become 20px; shorter header hides the setup anchor."
+      },
+      {
+        "name": "landing-mobile",
+        "value": "560px",
+        "purpose": "Demo works, setup sequence, artwork rows and closing content stack."
+      }
+    ],
+    "focus": [
+      {
+        "name": "control-focus",
+        "value": "3px solid var(--blue); outline-offset: 4px",
+        "purpose": "Keyboard focus on links, buttons, summaries and the registration success target."
+      },
+      {
+        "name": "field-focus",
+        "value": "border-color: var(--blue); outline: 2px solid var(--blue); outline-offset: 1px",
+        "purpose": "Focused shared text and password fields."
+      }
+    ],
+    "previewNotes": [
+      "Component snippets are static framework-free examples. Password visibility, resend, login, registration and navigation require the application runtime.",
+      "CSS custom properties reference the project's root tokens with literal fallbacks. Manrope is self-hosted by the application; the snippets use the sans-serif fallback when that font is unavailable in the host.",
+      "Tonal ramps are synthesized preview metadata and do not add application color tokens."
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The shared action button; registration uses a full-width instance with its arrow at the far edge.",
+      "html": "<button class=\"ds-primary\" type=\"button\">Создать аккаунт<svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 12h16m-6-6 6 6-6 6\"/></svg></button>",
+      "css": ".ds-primary{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:50px;padding:13px 24px;border:1px solid transparent;border-radius:10px;font-size:15px;font-weight:700;line-height:1.5;text-decoration:none;cursor:pointer;transition:background .16s ease,border-color .16s ease;font-family:'Manrope Variable',sans-serif;background:var(--blue,#315de8);color:var(--white,#fff)}.ds-primary:hover{background:var(--blue-hover,#244bc5)}.ds-primary:focus-visible{outline:3px solid var(--blue,#315de8);outline-offset:4px;}.ds-primary:disabled{opacity:.65;cursor:wait}@media(prefers-reduced-motion:reduce){.ds-primary{transition:none!important;animation:none!important;}}"
+    },
+    {
+      "name": "Outline button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "A white secondary action with a cool border and pale-blue hover.",
+      "html": "<button class=\"ds-outline\" type=\"button\">Войти</button>",
+      "css": ".ds-outline{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:50px;padding:13px 24px;border:1px solid transparent;border-radius:10px;font-size:15px;font-weight:700;line-height:1.5;text-decoration:none;cursor:pointer;transition:background .16s ease,border-color .16s ease;font-family:'Manrope Variable',sans-serif;border-color:#bdc3d3;background:var(--white,#fff);color:var(--ink,#171a24)}.ds-outline:hover{border-color:var(--blue,#315de8);background:var(--blue-soft,#eef2ff)}.ds-outline:focus-visible{outline:3px solid var(--blue,#315de8);outline-offset:4px;}.ds-outline:disabled{opacity:.65;cursor:wait}@media(prefers-reduced-motion:reduce){.ds-outline{transition:none!important;animation:none!important;}}"
+    },
+    {
+      "name": "Labeled field",
+      "kind": "input",
+      "refersTo": "text-field",
+      "description": "The shared email field with visible label, outlined focus and an optional invalid state via aria-invalid.",
+      "html": "<div class=\"ds-field\"><label for=\"ds-email\">Email</label><input id=\"ds-email\" name=\"email\" type=\"email\" placeholder=\"you@example.com\" autocomplete=\"email\" aria-describedby=\"ds-field-hint\"><p id=\"ds-field-hint\">Укажите email аккаунта.</p></div>",
+      "css": ".ds-field{max-width:420px;color:var(--ink,#171a24);font-family:'Manrope Variable',sans-serif;}.ds-field label{display:block;margin-bottom:7px;font-size:13px;font-weight:700}.ds-field input{width:100%;min-height:50px;border:1px solid #aeb6ca;border-radius:9px;background:var(--white,#fff);padding:12px 14px;font-size:15px;line-height:24px;color:var(--ink,#171a24);caret-color:var(--blue,#315de8);font-family:'Manrope Variable',sans-serif;}.ds-field input::placeholder{color:#747b8e;opacity:1}.ds-field input:focus{border-color:var(--blue,#315de8);outline:2px solid var(--blue,#315de8);outline-offset:1px}.ds-field input[aria-invalid=true]{border-color:var(--error,#ad2738)}.ds-field p{margin:6px 0 0;font-size:11px;line-height:1.6;color:var(--muted,#626879)}"
+    },
+    {
+      "name": "Password field",
+      "kind": "input",
+      "refersTo": "text-field",
+      "description": "The password field's visible state with an inset eye control. The static snippet previews the control; the shipped Svelte component toggles visibility.",
+      "html": "<div class=\"ds-password\"><label for=\"ds-password\">Пароль</label><div class=\"ds-password-wrap\"><input id=\"ds-password\" name=\"password\" type=\"password\" autocomplete=\"new-password\" aria-describedby=\"ds-password-hint\"><button class=\"ds-password-toggle\" type=\"button\" aria-label=\"Показать пароль\" aria-pressed=\"false\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Zm13 0a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z\"/></svg></button></div><p id=\"ds-password-hint\">Не менее 12 символов. Максимум 256 байт.</p></div>",
+      "css": ".ds-password{max-width:420px;color:var(--ink,#171a24);font-family:'Manrope Variable',sans-serif;}.ds-password label{display:block;margin-bottom:7px;font-size:13px;font-weight:700}.ds-password-wrap{position:relative}.ds-password input{width:100%;min-height:50px;border:1px solid #aeb6ca;border-radius:9px;background:var(--white,#fff);padding:12px 14px;font-size:15px;line-height:24px;color:var(--ink,#171a24);caret-color:var(--blue,#315de8);font-family:'Manrope Variable',sans-serif;padding-right:52px}.ds-password input:focus{border-color:var(--blue,#315de8);outline:2px solid var(--blue,#315de8);outline-offset:1px}.ds-password-toggle{position:absolute;right:4px;top:4px;width:44px;height:42px;border:0;display:grid;place-items:center;border-radius:8px;background:transparent;color:var(--muted,#626879);cursor:pointer}.ds-password-toggle:hover{color:var(--blue,#315de8);background:var(--blue-soft,#eef2ff)}.ds-password-toggle:focus-visible{outline:3px solid var(--blue,#315de8);outline-offset:4px;}.ds-password p{margin:6px 0 0;font-size:11px;line-height:1.6;color:var(--muted,#626879)}"
+    },
+    {
+      "name": "Header navigation",
+      "kind": "nav",
+      "description": "A dark wordmark with a blue dot, plain navigation and compact outline login. The setup link hides on narrow screens.",
+      "html": "<header class=\"ds-header\"><div class=\"ds-header-inner\"><a class=\"ds-wordmark\" href=\"#ds-main\" aria-label=\"etheyl — главная\">etheyl<span aria-hidden=\"true\">.</span></a><nav class=\"ds-header-nav\" aria-label=\"Основная навигация\"><a class=\"ds-how\" href=\"#ds-setup\">Как это работает</a><a href=\"#ds-authors\">Найти авторов</a></nav><a class=\"ds-login\" href=\"#ds-login\">Войти</a></div></header>",
+      "css": ".ds-header{border-bottom:1px solid var(--line,#e4e6ef);background:var(--white,#fff);color:var(--ink,#171a24);font-family:'Manrope Variable',sans-serif;}.ds-header-inner{width:min(1280px,calc(100% - 80px));margin-inline:auto;min-height:88px;display:flex;align-items:center;gap:64px}.ds-wordmark{font-size:36px;font-weight:800;letter-spacing:-.04em;text-decoration:none;color:inherit}.ds-wordmark span{color:var(--blue,#315de8)}.ds-header-nav{display:flex;align-items:center;gap:34px;font-size:14px;font-weight:600}.ds-header-nav a{text-decoration:none;color:inherit}.ds-header-nav a:hover{color:var(--blue,#315de8)}.ds-login{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:50px;padding:13px 24px;border:1px solid transparent;border-radius:10px;font-size:15px;font-weight:700;line-height:1.5;text-decoration:none;cursor:pointer;transition:background .16s ease,border-color .16s ease;font-family:'Manrope Variable',sans-serif;margin-left:auto;min-height:42px;padding:9px 25px;font-size:14px;border-color:#bdc3d3;background:var(--white,#fff);color:var(--ink,#171a24)}.ds-login:hover{border-color:var(--blue,#315de8);background:var(--blue-soft,#eef2ff)}.ds-header a:focus-visible{outline:3px solid var(--blue,#315de8);outline-offset:4px;}@media(max-width:1000px){.ds-header-inner{width:calc(100% - 48px)}}@media(max-width:640px){.ds-header-inner{width:calc(100% - 40px);min-height:74px;gap:18px}.ds-wordmark{font-size:29px}.ds-header-nav{margin-left:auto;font-size:12px}.ds-how{display:none}.ds-login{margin-left:0;padding:8px 14px}}@media(prefers-reduced-motion:reduce){.ds-login{transition:none!important;animation:none!important;}}"
+    },
+    {
+      "name": "Registration success",
+      "kind": "card",
+      "refersTo": "registration-success",
+      "description": "A pale-blue confirmation panel. The shipped panel receives focus after registration and stacks resend and login actions.",
+      "html": "<div class=\"ds-success\" role=\"status\" tabindex=\"-1\"><span class=\"ds-success-icon\"><svg width=\"26\" height=\"26\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 5h18v14H3V5Zm0 1 9 7 9-7\"/></svg></span><h2>Проверьте почту</h2><p>Перейдите по ссылке из письма, чтобы подтвердить адрес и завершить регистрацию.</p><p class=\"ds-success-hint\">Не нашли письмо? Загляните в папку «Спам» или запросите новое.</p><div class=\"ds-success-actions\"><button class=\"ds-resend\" type=\"button\">Отправить письмо ещё раз</button><a href=\"#ds-login\">Перейти ко входу</a></div></div>",
+      "css": ".ds-success{max-width:420px;padding:24px;border-radius:16px;background:var(--blue-soft,#eef2ff);color:var(--ink,#171a24);font-family:'Manrope Variable',sans-serif;}.ds-success-icon{color:var(--blue,#315de8)}.ds-success h2{font-size:26px;margin:18px 0 12px}.ds-success p{line-height:1.7;overflow-wrap:anywhere;margin-top:0}.ds-success-hint{font-size:11px;color:var(--muted,#626879);margin:6px 0 0}.ds-success-actions{display:flex;flex-direction:column;align-items:flex-start;gap:16px;margin-top:20px}.ds-resend{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:50px;padding:13px 24px;border:1px solid transparent;border-radius:10px;font-size:15px;font-weight:700;line-height:1.5;text-decoration:none;cursor:pointer;transition:background .16s ease,border-color .16s ease;font-family:'Manrope Variable',sans-serif;font-size:13px;max-width:100%;border-color:#bdc3d3;background:var(--white,#fff);color:var(--ink,#171a24)}.ds-resend:hover{border-color:var(--blue,#315de8);background:var(--blue-soft,#eef2ff)}.ds-success-actions a{color:inherit;text-underline-offset:4px}.ds-success:focus-visible,.ds-success a:focus-visible,.ds-resend:focus-visible{outline:3px solid var(--blue,#315de8);outline-offset:4px;}.ds-resend:disabled{opacity:.65;cursor:wait}@media(prefers-reduced-motion:reduce){.ds-resend{transition:none!important;animation:none!important;}}"
+    },
+    {
+      "name": "Access labels",
+      "kind": "custom",
+      "description": "Small text-and-icon metadata for public and subscription work; these are labels rather than interactive pills.",
+      "html": "<div class=\"ds-access-group\"><span class=\"ds-access\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"m5 12 4 4L19 6\"/></svg>Открыто для всех</span><span class=\"ds-access ds-subscriber\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5V10Zm7 5v2\"/></svg>По подписке</span></div>",
+      "css": ".ds-access-group{display:flex;flex-direction:column;gap:12px;font-family:'Manrope Variable',sans-serif;}.ds-access{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted,#626879)}.ds-subscriber{color:var(--blue-hover,#244bc5)}"
+    },
+    {
+      "name": "FAQ disclosure",
+      "kind": "custom",
+      "description": "Native details/summary with divider lines, muted answer copy and a blue SVG plus that rotates when open.",
+      "html": "<div class=\"ds-faq\"><details class=\"ds-question\"><summary>Что нужно, чтобы начать?<span><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 5v14M5 12h14\"/></svg></span></summary><p>Создайте аккаунт: укажите email, никнейм и пароль. Затем подтвердите адрес по ссылке из письма.</p></details></div>",
+      "css": ".ds-faq{max-width:640px;border-top:1px solid var(--line,#e4e6ef);color:var(--ink,#171a24);font-family:'Manrope Variable',sans-serif;}.ds-question{border-bottom:1px solid var(--line,#e4e6ef);padding:22px 0}.ds-question summary{display:flex;align-items:center;justify-content:space-between;gap:20px;list-style:none;cursor:pointer;font-size:14px;line-height:1.65;font-weight:700}.ds-question summary::-webkit-details-marker{display:none}.ds-question summary span{display:inline-flex;flex-shrink:0;color:var(--blue,#315de8)}.ds-question[open] summary span{transform:rotate(45deg)}.ds-question summary:focus-visible{outline:3px solid var(--blue,#315de8);outline-offset:4px;}.ds-question p{margin:15px 26px 0 0;font-size:13px;line-height:1.85;color:var(--muted,#626879)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "A place for your work",
+    "overview": "White and cool pale surfaces frame dark Manrope type and direct blue actions. The interface feels familiar and orderly, while original artwork supplies its color and personality. The built landing uses a garden illustration and a ceramic-cat 3D rendering inside an explicitly labeled creator-page demonstration.\n\nControls are precise and gently rounded. Spacious explanatory sections sit beside a compact registration form; account destinations reuse the same typography, fields and actions at a narrower reading width. Motion is limited to state feedback and navigation to the form.",
+    "keyCharacteristics": [
+      "White and cool-blue surfaces with dark, compact headings.",
+      "Blue for primary actions, focus and subscription-access accents.",
+      "Original illustrative and 3D work presented as demonstration content.",
+      "Outlined fields, modest radii and restrained native interactions."
+    ],
+    "rules": [
+      {
+        "name": "The Action Blue Rule",
+        "body": "Blue identifies an action, a focus target, headline emphasis or an access distinction; long explanatory copy uses the neutral text colors.",
+        "section": "colors"
+      },
+      {
+        "name": "The Artwork Frame Rule",
+        "body": "In the current landing, the raised frame belongs to the creator-page demonstration; surrounding controls and explanatory sections stay visually quiet.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do reuse the blue action and focus treatments with visible field labels.",
+      "Do keep illustration and 3D demonstration content clearly labeled as examples.",
+      "Do preserve readable Russian wrapping when columns stack or text grows.",
+      "Do retain the native disclosure behavior and reduced-motion handling already implemented."
+    ],
+    "donts": [
+      "Don't present the fictional workshop or its artwork as a real creator endorsement.",
+      "Don't replace visible field labels or error explanations with icon-only feedback.",
+      "Don't remove visible keyboard focus from the existing controls."
+    ]
+  }
+}

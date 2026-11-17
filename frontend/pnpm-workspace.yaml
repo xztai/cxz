@@ -1,0 +1,9 @@
+engineStrict: true
+allowBuilds:
+  esbuild: true
+peerDependencyRules:
+  allowedVersions:
+    openapi-typescript>typescript: "6"
+audit:
+  ignore:
+    - GHSA-fc5q-39xc-vjpf

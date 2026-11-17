@@ -1,0 +1,128 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:18.6-alpine@sha256:9ba53c7d41ea093baf5c1ba635ba5434c4f979880527d49bb7d9237d3193085b
+        env:
+          POSTGRES_USER: etheyl_test
+          POSTGRES_PASSWORD: etheyl_test
+          POSTGRES_DB: etheyl_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U etheyl_test -d etheyl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://etheyl_test:etheyl_test@localhost:5432/etheyl_test?sslmode=disable
+      TEST_S3_PORT: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        id: checkout
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Generated SQL is current
+        run: |
+          go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate
+          git diff --exit-code -- internal/store
+      - name: Private RustFS for media integration tests
+        run: |
+          docker compose -p etheyl-ci-storage -f ../compose.test.yaml up -d --wait test-rustfs
+          endpoint=$(docker compose -p etheyl-ci-storage -f ../compose.test.yaml port test-rustfs 9000)
+          echo "TEST_S3_ENDPOINT=$endpoint" >> "$GITHUB_ENV"
+      - name: Go tests and race detector with PostgreSQL and RustFS
+        run: go test -race -count=1 -coverpkg=./... -coverprofile=coverage.out ./...
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        # act's artifact server currently rejects upload-artifact v7.
+        if: ${{ !env.ACT }}
+        with:
+          name: go-coverage
+          path: backend/coverage.out
+          retention-days: 14
+      - name: PostgreSQL restore drill
+        env:
+          RESTORE_CONTAINER: ${{ job.services.postgres.id }}
+        run: python3 ../scripts/restore-drill.py
+      - name: golangci-lint v2.15.0
+        run: go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run ./...
+      - if: always() && steps.checkout.outcome == 'success'
+        run: docker compose -p etheyl-ci-storage -f ../compose.test.yaml down
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.node-version
+      - name: Install pnpm
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/pnpm" pnpm@12.18.0
+          echo "$RUNNER_TEMP/pnpm/bin" >> "$GITHUB_PATH"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm peers check
+      - name: Generated API types are current
+        run: |
+          pnpm generate:api
+          git diff --exit-code -- src/lib/api/schema.d.ts
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:unit --run
+      - run: pnpm check
+      - run: pnpm build
+  compose-e2e:
+    needs: [backend, frontend]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      COMPOSE_PROJECT_NAME: etheyl-ci-e2e
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.node-version
+      - name: Install pnpm
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/pnpm" pnpm@12.18.0
+          echo "$RUNNER_TEMP/pnpm/bin" >> "$GITHUB_PATH"
+      - run: pnpm --dir frontend install --frozen-lockfile
+      - run: pnpm --dir frontend exec playwright install --with-deps chromium
+      - run: make init
+        id: init
+      - name: Clean Compose startup and migrations
+        run: docker compose up --build --wait --wait-timeout 180
+      - name: Runtime database permissions
+        run: docker compose exec -T postgres psql -U etheyl -d etheyl < scripts/check-db-roles.sql
+      - name: Playwright against Compose
+        run: E2E_BASE_URL="${APP_ORIGIN:-http://localhost:8080}" pnpm --dir frontend exec playwright test
+      - name: Logs on failure
+        if: failure() && steps.init.outcome == 'success'
+        run: docker compose logs --no-color --tail 100
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure() && !env.ACT
+        with:
+          name: playwright-results
+          path: |
+            frontend/test-results
+            frontend/playwright-report
+          retention-days: 7
+      - if: always() && steps.init.outcome == 'success'
+        run: docker compose down --volumes
