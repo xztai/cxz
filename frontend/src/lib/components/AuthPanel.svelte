@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { resolve } from '$app/paths';
-	import { api, errorMessage, type User } from '#lib/api/client.js';
+	import { goto } from '$app/navigation';
+	import { api, ApiError, errorMessage, type User } from '#lib/api/client.js';
 	import { emailError, passwordError } from '#lib/validation.js';
 	import PasswordField from './PasswordField.svelte';
 	import Icon from './Icon.svelte';
 	import { getSession } from '#lib/session.svelte.js';
 	const session = getSession();
-	let { mode }: { mode: 'login' | 'verify' | 'resend' | 'forgot' | 'reset' } = $props();
+	let { mode }: { mode: 'login' | 'verify' | 'forgot' | 'reset' } = $props();
 	let email = $state('');
 	let password = $state('');
 	let token = $state('');
@@ -23,7 +24,6 @@
 	const titles = {
 		login: 'С возвращением',
 		verify: 'Подтвердите email',
-		resend: 'Новое письмо',
 		forgot: 'Восстановить пароль',
 		reset: 'Новый пароль'
 	};
@@ -93,8 +93,7 @@
 			} else if (mode === 'verify') {
 				confirmedUser = (await api.verify(token)).user;
 				session.setUser(confirmedUser);
-			} else if (mode === 'resend') await api.resend(email.trim());
-			else if (mode === 'forgot') await api.forgot(email.trim());
+			} else if (mode === 'forgot') await api.forgot(email.trim());
 			else {
 				await api.reset(token, password);
 				session.setUser(null);
@@ -103,6 +102,12 @@
 			password = '';
 			token = '';
 		} catch (error) {
+			if (mode === 'login' && error instanceof ApiError && error.code === 'email_unverified') {
+				password = '';
+				session.setVerification(email);
+				await goto(resolve('/auth/check-email'));
+				return;
+			}
 			message = errorMessage(error);
 		} finally {
 			busy = false;
@@ -151,13 +156,9 @@
 						: 'Для подтверждения откройте ссылку из письма.'}
 			</p>
 		{:else if mode === 'reset'}<p class="intro">Придумайте новый пароль для своего аккаунта.</p>
-		{:else}<p class="intro">
-				Укажите email аккаунта. Мы отправим ссылку для {mode === 'resend'
-					? 'подтверждения адреса'
-					: 'смены пароля'}.
-			</p>{/if}
+		{:else}<p class="intro">Укажите email аккаунта. Мы отправим ссылку для смены пароля.</p>{/if}
 		<form method="POST" onsubmit={submit} novalidate aria-busy={busy}>
-			{#if mode === 'login' || mode === 'resend' || mode === 'forgot'}<div class="field">
+			{#if mode === 'login' || mode === 'forgot'}<div class="field">
 					<label for="auth-email">Email</label><input
 						id="auth-email"
 						type="email"
@@ -195,15 +196,13 @@
 				>{/if}
 		</form>
 		<div class="auth-links">
-			{#if mode === 'login'}<a href={resolve('/auth/forgot')}>Забыли пароль?</a><a
-					href={resolve('/auth/resend')}>Подтвердить email</a
-				>
+			{#if mode === 'login'}<a href={resolve('/auth/forgot')}>Забыли пароль?</a>
 				<p>Ещё нет аккаунта? <a href={resolve('/#registration')}>Зарегистрироваться</a></p>
 			{:else if mode === 'verify'}{#if token && !ready && !busy}<button
 						type="button"
 						class="retry-link"
 						onclick={preview}>Проверить ссылку ещё раз</button
-					>{/if}<a href={resolve('/auth/resend')}>Запросить новое письмо</a>
+					>{/if}<a href={resolve('/auth/check-email')}>Запросить новое письмо</a>
 			{:else if mode === 'reset'}<a href={resolve('/auth/forgot')}
 					>Запросить ссылку для смены пароля</a
 				>

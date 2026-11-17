@@ -417,6 +417,32 @@ func (q *Queries) UpdatePassword(ctx context.Context, arg UpdatePasswordParams) 
 	return err
 }
 
+const updateUnverifiedEmail = `-- name: UpdateUnverifiedEmail :one
+UPDATE users SET email = $2 WHERE id = $1 AND NOT email_verified RETURNING id, email, name, password_hash, email_verified, is_admin, blocked, created_at, nickname
+`
+
+type UpdateUnverifiedEmailParams struct {
+	ID    int64
+	Email string
+}
+
+func (q *Queries) UpdateUnverifiedEmail(ctx context.Context, arg UpdateUnverifiedEmailParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUnverifiedEmail, arg.ID, arg.Email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.PasswordHash,
+		&i.EmailVerified,
+		&i.IsAdmin,
+		&i.Blocked,
+		&i.CreatedAt,
+		&i.Nickname,
+	)
+	return i, err
+}
+
 const userByEmail = `-- name: UserByEmail :one
 SELECT id, email, name, password_hash, email_verified, is_admin, blocked, created_at, nickname FROM users WHERE email = $1
 `

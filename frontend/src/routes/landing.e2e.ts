@@ -44,6 +44,7 @@ async function fillRegistration(page: Page, password = ' original password 🌿 
 test('registration sends exact password with same-origin CSRF cookie and header; success and resend work', async ({
 	page
 }) => {
+	await page.clock.install();
 	await mockCsrf(page);
 	await page.route('**/api/v1/auth/register', async (route) => {
 		const request = route.request();
@@ -66,12 +67,19 @@ test('registration sends exact password with same-origin CSRF cookie and header;
 	await expect(page.getByLabel('Пароль', { exact: true })).toHaveAttribute('type', 'text');
 	await page.getByRole('button', { name: 'Скрыть пароль' }).click();
 	await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+	await expect(page).toHaveURL('/auth/check-email');
 	await expect(page.getByRole('heading', { name: 'Проверьте почту' })).toBeVisible();
-	await expect(page.locator('.registration-success')).toBeFocused();
-	await page.getByRole('button', { name: 'Отправить письмо ещё раз' }).click();
-	await expect(
-		page.getByText('Если адрес подходит для подтверждения', { exact: false })
-	).toBeVisible();
+	await expect(page.getByText(user.email, { exact: true })).toBeVisible();
+	const resend = page.getByRole('button', { name: 'Отправить письмо ещё раз' });
+	await expect(resend).toBeDisabled();
+	await expect(page.getByText(/Повторная отправка через \d+ сек\./)).toBeVisible();
+	await page.reload();
+	await expect(resend).toBeDisabled();
+	await page.clock.fastForward(61_000);
+	await expect(resend).toBeEnabled();
+	await resend.click();
+	await expect(page.getByRole('status')).toContainText('Письмо отправлено повторно');
+	await expect(resend).toBeDisabled();
 });
 
 test('invalid fields focus the first error and reject short Unicode passwords before requesting', async ({
@@ -150,6 +158,7 @@ test('login uses CSRF and opens an authenticated success state', async ({ page }
 		await route.fulfill({ json: { user } });
 	});
 	await page.goto('/login');
+	await expect(page.getByRole('link', { name: 'Подтвердить email', exact: true })).toHaveCount(0);
 	await page.getByLabel('Email', { exact: true }).fill(user.email);
 	await page.getByLabel('Пароль', { exact: true }).fill('original password');
 	await page.getByRole('button', { name: 'Войти', exact: true }).click();
@@ -265,7 +274,184 @@ test('expired verification offers a working resend destination', async ({ page }
 	await page.goto(`/auth/verify#token=${csrf}`);
 	await expect(page.getByRole('alert')).toContainText('Ссылка недействительна');
 	await page.getByRole('link', { name: 'Запросить новое письмо' }).click();
-	await expect(page.getByRole('heading', { name: 'Новое письмо' })).toBeVisible();
+	await expect(page).toHaveURL('/auth/check-email');
+	await expect(page.getByRole('heading', { name: 'Проверьте почту' })).toBeVisible();
+	await expect(page.locator('main form')).toHaveCount(0);
+	await page.getByRole('link', { name: 'Перейти ко входу' }).click();
+	await expect(page.getByRole('heading', { name: 'С возвращением' })).toBeVisible();
+});
+
+async function unverifiedLogin(page: Page) {
+	await mockCsrf(page);
+	await page.route('**/api/v1/auth/login', (route) =>
+		route.fulfill({ status: 403, json: { error: { code: 'email_unverified' } } })
+	);
+	await page.goto('/login');
+	await page.getByLabel('Email', { exact: true }).fill(user.email);
+	await page.getByLabel('Пароль', { exact: true }).fill('original password');
+	await page.getByRole('button', { name: 'Войти', exact: true }).click();
+	await expect(page).toHaveURL('/auth/check-email');
+}
+
+test('unverified login opens the same check-email screen without signing in or sending automatically', async ({
+	page
+}) => {
+	await page.clock.install();
+	let sends = 0;
+	await page.route('**/api/v1/auth/resend-verification', (route) => {
+		sends++;
+		expect(route.request().postDataJSON()).toEqual({ email: user.email });
+		return route.fulfill({ status: 202, json: { message: 'accepted' } });
+	});
+	await unverifiedLogin(page);
+	await expect(page.getByRole('heading', { name: 'Проверьте почту' })).toBeVisible();
+	await expect(page.getByText(user.email, { exact: true })).toBeVisible();
+	await expect(page.locator('header')).not.toContainText('@artist');
+	await expect(page.getByLabel('Пароль', { exact: true })).toHaveCount(0);
+	expect(sends).toBe(0);
+	const resend = page.getByRole('button', { name: 'Отправить письмо ещё раз' });
+	await resend.click();
+	await expect(resend).toBeDisabled();
+	expect(sends).toBe(1);
+	await page.getByRole('link', { name: 'Перейти ко входу' }).click();
+	await page.getByLabel('Email', { exact: true }).fill(user.email);
+	await page.getByLabel('Пароль', { exact: true }).fill('original password');
+	await page.getByRole('button', { name: 'Войти', exact: true }).click();
+	await expect(resend).toBeDisabled();
+	expect(sends).toBe(1);
+	expect(await page.evaluate(() => sessionStorage.getItem('etheyl.verification'))).not.toContain(
+		'original password'
+	);
+});
+
+test('incorrect credentials stay on login and never open verification', async ({ page }) => {
+	await mockCsrf(page);
+	await page.route('**/api/v1/auth/login', (route) =>
+		route.fulfill({ status: 401, json: { error: { code: 'credentials' } } })
+	);
+	await page.goto('/login');
+	await page.getByLabel('Email', { exact: true }).fill(user.email);
+	await page.getByLabel('Пароль', { exact: true }).fill('wrong password');
+	await page.getByRole('button', { name: 'Войти', exact: true }).click();
+	await expect(page.getByRole('alert')).toContainText('Неверный email или пароль');
+	await expect(page).toHaveURL('/login');
+	expect(await page.evaluate(() => sessionStorage.getItem('etheyl.verification'))).toBeNull();
+});
+
+test('email correction reauthenticates, handles errors and persists the new address and cooldown', async ({
+	page
+}) => {
+	const correctedEmail = 'corrected@example.com';
+	let attempts = 0;
+	await page.route('**/api/v1/auth/change-unverified-email', (route) => {
+		attempts++;
+		expect(route.request().headers()['x-csrf-token']).toBe(csrf);
+		expect(route.request().headers().cookie).toContain(`csrf=${csrf}`);
+		expect(route.request().headers().origin).toBe('http://127.0.0.1:4173');
+		expect(route.request().postDataJSON()).toEqual({
+			email: user.email,
+			newEmail: correctedEmail,
+			password: attempts === 1 ? 'wrong password' : 'original password'
+		});
+		if (attempts < 3) {
+			return route.fulfill({
+				status: attempts === 1 ? 401 : 409,
+				json: { error: { code: attempts === 1 ? 'credentials' : 'email_exists' } }
+			});
+		}
+		return route.fulfill({ status: 202, json: { message: 'accepted' } });
+	});
+	await unverifiedLogin(page);
+	await page.getByRole('button', { name: 'Изменить email' }).click();
+	await expect(page.getByLabel('Новый email')).toBeFocused();
+	await page.getByLabel('Новый email').fill(correctedEmail);
+	for (const [index, password] of [
+		'wrong password',
+		'original password',
+		'original password'
+	].entries()) {
+		await page.getByLabel('Пароль', { exact: true }).fill(password);
+		await page.getByRole('button', { name: 'Сохранить и отправить письмо' }).click();
+		if (index === 0) {
+			await expect(page.getByText('Неверный пароль. Попробуйте ещё раз.')).toBeVisible();
+			await expect(page.getByLabel('Пароль', { exact: true })).toHaveValue('');
+		} else if (index === 1) {
+			await expect(page.getByLabel('Новый email')).toHaveAttribute('aria-invalid', 'true');
+		}
+	}
+	await expect(page.getByRole('heading', { name: 'Проверьте почту' })).toBeVisible();
+	await expect(page.getByRole('status')).toContainText('Email изменён');
+	await expect(page.getByText(correctedEmail, { exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Отправить письмо ещё раз' })).toBeDisabled();
+	await expect(page.locator('header')).not.toContainText('@artist');
+	await page.reload();
+	await expect(page.getByText(correctedEmail, { exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Отправить письмо ещё раз' })).toBeDisabled();
+	await page.getByRole('button', { name: 'Изменить email' }).click();
+	await page.getByLabel('Пароль', { exact: true }).fill('discard me');
+	await page.getByRole('button', { name: 'Отмена', exact: true }).click();
+	await page.getByRole('button', { name: 'Изменить email' }).click();
+	await expect(page.getByLabel('Пароль', { exact: true })).toHaveValue('');
+});
+
+test('resend recovers from network failure and respects server Retry-After', async ({ page }) => {
+	await page.clock.install();
+	await unverifiedLogin(page);
+	const resend = page.getByRole('button', { name: 'Отправить письмо ещё раз' });
+	await page.route('**/api/v1/auth/resend-verification', (route) => route.abort('failed'));
+	await resend.click();
+	await expect(page.getByRole('alert')).toContainText('Нет связи с сервером');
+	await expect(resend).toBeEnabled();
+	await page.route('**/api/v1/auth/resend-verification', (route) =>
+		route.fulfill({
+			status: 429,
+			headers: { 'Retry-After': '120' },
+			json: { error: { code: 'rate_limit' } }
+		})
+	);
+	await resend.click();
+	await expect(page.getByRole('alert')).toContainText('через 2 мин.');
+	await page.clock.fastForward(61_000);
+	await expect(resend).toBeDisabled();
+	await page.clock.fastForward(60_000);
+	await expect(resend).toBeEnabled();
+});
+
+test('legacy resend route redirects to the check-email screen without a separate email form', async ({
+	page
+}) => {
+	await page.goto('/auth/resend');
+	await expect(page).toHaveURL('/auth/check-email');
+	await expect(page.locator('main form')).toHaveCount(0);
+});
+
+test('check-email and email correction fit narrow screens with long addresses', async ({
+	page
+}) => {
+	await page.addInitScript(() => {
+		sessionStorage.setItem(
+			'etheyl.verification',
+			JSON.stringify({
+				email: 'very.long.email.address.for.a.creator@very-long-domain.example.com',
+				resendAt: Date.now() + 60_000,
+				sent: true
+			})
+		);
+	});
+	for (const width of [320, 390, 768, 1440]) {
+		await page.setViewportSize({ width, height: 900 });
+		await page.goto('/auth/check-email');
+		await expect(page.getByRole('heading', { name: 'Проверьте почту' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Изменить email' })).toBeVisible();
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+		).toBe(true);
+		await page.getByRole('button', { name: 'Изменить email' }).click();
+		await expect(page.getByLabel('Новый email')).toBeFocused();
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+		).toBe(true);
+	}
 });
 
 test('discovery searches real API results and opens the public profile', async ({ page }) => {

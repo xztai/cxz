@@ -5,9 +5,7 @@
 	import Icon from '#lib/components/Icon.svelte';
 	function focusRegistration(event: MouseEvent) {
 		event.preventDefault();
-		const target =
-			document.getElementById('email') ??
-			document.querySelector<HTMLElement>('.registration-success');
+		const target = document.getElementById('email');
 		target?.focus({ preventScroll: true });
 		document.getElementById('registration')?.scrollIntoView({ block: 'start' });
 	}

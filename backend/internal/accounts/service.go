@@ -149,57 +149,20 @@ func (s *Service) Login(ctx context.Context, emailInput, password, ip, oldSessio
 	if !valid || len(password) > 256 || password == "" {
 		return Session{}, invalid()
 	}
-	key := "login:" + ip + ":" + email
-	hits, err := s.q.FailedLoginHits(ctx, auth.Digest(key))
-	if err != nil {
+	if err := s.checkLoginLimit(ctx, email, ip); err != nil {
 		return Session{}, err
-	}
-	if hits >= 10 {
-		return Session{}, problem("rate_limit", "Слишком много попыток. Попробуйте через 15 минут.")
-	}
-	// Account risk adds a bounded delay, never a global account lockout.
-	risk, err := s.q.FailedLoginHits(ctx, auth.Digest("risk:"+email))
-	if err != nil {
-		return Session{}, err
-	}
-	if risk >= 10 {
-		select {
-		case <-time.After(300 * time.Millisecond):
-		case <-ctx.Done():
-			return Session{}, ctx.Err()
-		}
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Session{}, err
 	}
 	defer rollback(tx)
-	q := s.q.WithTx(tx)
-	u, err := q.LockUserByEmail(ctx, email)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return Session{}, err
-	}
-	hash := u.PasswordHash
-	if errors.Is(err, pgx.ErrNoRows) {
-		hash = s.dummyPassword
-	}
-	matches, err := s.checkPassword(ctx, hash, password)
+	q := store.New(tx)
+	u, err := s.authenticate(ctx, tx, email, password, ip)
 	if err != nil {
 		return Session{}, err
 	}
-	if !matches || u.ID == 0 || u.Blocked {
-		if err := tx.Rollback(ctx); err != nil {
-			return Session{}, err
-		}
-		if err := s.limit(ctx, key, 1000000); err != nil {
-			return Session{}, err
-		}
-		if err := s.limit(ctx, "risk:"+email, 1000000); err != nil {
-			return Session{}, err
-		}
-		return Session{}, problem("credentials", "Неверный email или пароль.")
-	}
-	if err := q.ClearRateLimit(ctx, auth.Digest(key)); err != nil {
+	if err := q.ClearRateLimit(ctx, auth.Digest("login:"+ip+":"+email)); err != nil {
 		return Session{}, err
 	}
 	if !u.EmailVerified {
@@ -213,6 +176,100 @@ func (s *Service) Login(ctx context.Context, emailInput, password, ip, oldSessio
 		return Session{}, err
 	}
 	return Session{User: u, Token: token}, nil
+}
+
+func (s *Service) checkLoginLimit(ctx context.Context, email, ip string) error {
+	key := "login:" + ip + ":" + email
+	hits, err := s.q.FailedLoginHits(ctx, auth.Digest(key))
+	if err != nil {
+		return err
+	}
+	if hits >= 10 {
+		return problem("rate_limit", "Слишком много попыток. Попробуйте через 15 минут.")
+	}
+	// Account risk adds a bounded delay, never a global account lockout.
+	risk, err := s.q.FailedLoginHits(ctx, auth.Digest("risk:"+email))
+	if err != nil {
+		return err
+	}
+	if risk >= 10 {
+		select {
+		case <-time.After(300 * time.Millisecond):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
+}
+
+// authenticate checks credentials and leaves the user locked for the caller's mutation.
+func (s *Service) authenticate(ctx context.Context, tx pgx.Tx, email, password, ip string) (store.User, error) {
+	key := "login:" + ip + ":" + email
+	q := store.New(tx)
+	u, err := q.LockUserByEmail(ctx, email)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return store.User{}, err
+	}
+	hash := u.PasswordHash
+	if errors.Is(err, pgx.ErrNoRows) {
+		hash = s.dummyPassword
+	}
+	matches, err := s.checkPassword(ctx, hash, password)
+	if err != nil {
+		return store.User{}, err
+	}
+	if !matches || u.ID == 0 || u.Blocked {
+		if err := tx.Rollback(ctx); err != nil {
+			return store.User{}, err
+		}
+		if err := s.limit(ctx, key, 1000000); err != nil {
+			return store.User{}, err
+		}
+		if err := s.limit(ctx, "risk:"+email, 1000000); err != nil {
+			return store.User{}, err
+		}
+		return store.User{}, problem("credentials", "Неверный email или пароль.")
+	}
+	return u, nil
+}
+
+func (s *Service) ChangeUnverifiedEmail(ctx context.Context, emailInput, newEmailInput, password, ip string) error {
+	email, valid := auth.NormalizeEmail(emailInput)
+	newEmail, validNew := auth.NormalizeEmail(newEmailInput)
+	if !valid || !validNew || email == newEmail || password == "" || len(password) > 256 {
+		return invalid()
+	}
+	if err := s.limit(ctx, "change-email:"+ip, 5); err != nil {
+		return err
+	}
+	if err := s.checkLoginLimit(ctx, email, ip); err != nil {
+		return err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollback(tx)
+	q := store.New(tx)
+	u, err := s.authenticate(ctx, tx, email, password, ip)
+	if err != nil {
+		return err
+	}
+	if u.EmailVerified {
+		return problem("email_already_verified", "Этот email уже подтверждён. Войдите в аккаунт.")
+	}
+	u, err = q.UpdateUnverifiedEmail(ctx, store.UpdateUnverifiedEmailParams{ID: u.ID, Email: newEmail})
+	if err != nil {
+		if pgerr, ok := errors.AsType[*pgconn.PgError](err); ok && pgerr.Code == "23505" && pgerr.ConstraintName == "users_email_key" {
+			return problem("email_exists", "Этот email уже зарегистрирован. Укажите другой адрес.")
+		}
+		return err
+	}
+	// Replacing the token invalidates every link sent to the previous address.
+	if err := s.queueAction(ctx, q, u, "verify"); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // The caller holds the user's row lock and sets the cookie only after committing.

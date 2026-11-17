@@ -9,6 +9,7 @@ info:
     Сессия живёт 30 дней; подтверждение email — 24 часа; сброс пароля — 1 час.
     Все auth POST: 60 запросов/IP/15 минут; регистрация 5/IP;
     вход 10/email; письма 3/email/тип. Ответ 429 содержит Retry-After: 900.
+    Смена неподтверждённого email — 5 попыток/IP/15 минут, с проверкой текущего пароля и лимитами входа.
 servers:
   - url: /api/v1
 paths:
@@ -74,6 +75,7 @@ paths:
   /auth/login:
     post:
       operationId: login
+      description: Correct credentials for an unverified email return 403 email_unverified without creating a session.
       security: [{csrf: []}]
       requestBody:
         required: true
@@ -158,6 +160,32 @@ paths:
             schema: { $ref: '#/components/schemas/Email' }
       responses:
         '202': { $ref: '#/components/responses/Message' }
+        default: { $ref: '#/components/responses/Error' }
+  /auth/change-unverified-email:
+    post:
+      operationId: changeUnverifiedEmail
+      description: Checks the current email and password under a user row lock. Only unverified, unblocked accounts can change address. Updates the email and queues a fresh verification link atomically, invalidating the previous link. Does not create a session. Limited to 5 attempts/IP/15 minutes and the shared failed-login limits.
+      security: [{csrf: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, newEmail, password]
+              properties:
+                email: { type: string, format: email, maxLength: 254 }
+                newEmail: { type: string, format: email, maxLength: 254 }
+                password: { type: string, minLength: 1, maxLength: 256 }
+      responses:
+        '202': { $ref: '#/components/responses/Message' }
+        '401': { $ref: '#/components/responses/Error' }
+        '409':
+          description: email_exists or email_already_verified
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         default: { $ref: '#/components/responses/Error' }
   /auth/forgot-password:
     post:

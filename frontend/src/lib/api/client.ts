@@ -65,6 +65,9 @@ export const api = {
 		request<Result<'login', 200>>('/auth/login', input),
 	resend: (email: string) =>
 		request<Result<'resendVerification', 202>>('/auth/resend-verification', { email }),
+	changeUnverifiedEmail: (
+		input: operations['changeUnverifiedEmail']['requestBody']['content']['application/json']
+	) => request<Result<'changeUnverifiedEmail', 202>>('/auth/change-unverified-email', input),
 	forgot: (email: string) =>
 		request<Result<'forgotPassword', 202>>('/auth/forgot-password', { email }),
 	preview: (token: string) =>
@@ -95,6 +98,7 @@ export function errorMessage(error: unknown): string {
 		nickname_exists: 'Этот никнейм уже занят. Попробуйте другой.',
 		credentials: 'Неверный email или пароль. Проверьте данные и попробуйте снова.',
 		email_unverified: 'Сначала подтвердите email. Если письмо не пришло, запросите новое.',
+		email_already_verified: 'Этот email уже подтверждён. Войдите в аккаунт.',
 		invalid_token: 'Ссылка недействительна или срок её действия истёк. Запросите новое письмо.',
 		password_unchanged: 'Придумайте пароль, который отличается от текущего.',
 		validation: 'Проверьте заполненные поля и попробуйте снова.',

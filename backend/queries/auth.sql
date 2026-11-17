@@ -17,6 +17,9 @@ UPDATE users SET email_verified = true WHERE id = $1;
 -- name: UpdatePassword :exec
 UPDATE users SET password_hash = $2 WHERE id = $1;
 
+-- name: UpdateUnverifiedEmail :one
+UPDATE users SET email = $2 WHERE id = $1 AND NOT email_verified RETURNING *;
+
 -- name: PutActionToken :exec
 INSERT INTO action_tokens (token_hash, user_id, purpose, expires_at)
 VALUES ($1, $2, $3, $4)

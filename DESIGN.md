@@ -202,7 +202,7 @@ The header is white with a fine bottom border. The heavy wordmark ends in a blue
 
 The creator-page frame is a demonstration container, with cover art, an overlapping avatar, a clear fictional identity and two work previews. Access labels pair text with small check or lock icons; subscription text uses deep blue. The frame and the example captions visibly identify demonstration content.
 
-Registration success replaces the form with a pale-blue panel. A mail symbol precedes the heading and explanation. Resend and login actions stack vertically with a 16px gap. The panel receives focus after successful registration; its email text can wrap anywhere. The closing invitation focuses the email field, or the success panel when registration is complete, and scrolls to this same location.
+Successful registration navigates to `/auth/check-email`, a centered account panel capped at 420px. A blue mail symbol precedes “Проверьте почту” and the email address, which can wrap anywhere. The full-width resend action has a 60-second cooldown with a visible countdown underneath; email correction and login are secondary text actions. The same screen follows a login attempt with correct credentials and an unverified email. Email correction expands a labeled email and current-password form in place. The landing's closing invitation focuses and scrolls to its registration email field.
 
 ### FAQ
 

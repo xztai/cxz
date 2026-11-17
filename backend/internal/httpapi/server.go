@@ -133,6 +133,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/v1/auth/verify-email", s.endpoint(s.verify))
 	mux.HandleFunc("POST /api/v1/auth/verify-email/preview", s.endpoint(s.previewVerification))
 	mux.HandleFunc("POST /api/v1/auth/resend-verification", s.endpoint(s.resend))
+	mux.HandleFunc("POST /api/v1/auth/change-unverified-email", s.endpoint(s.changeUnverifiedEmail))
 	mux.HandleFunc("POST /api/v1/auth/forgot-password", s.endpoint(s.forgot))
 	mux.HandleFunc("POST /api/v1/auth/reset-password", s.endpoint(s.reset))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
@@ -232,7 +233,7 @@ func (s *Server) writeError(w http.ResponseWriter, err error) {
 		err = problem(status, failure.Code, failure.Message)
 	}
 	if failure, ok := errors.AsType[*accounts.Error](err); ok {
-		status := map[string]int{"validation": 422, "invalid_nickname": 422, "email_exists": 409, "nickname_exists": 409, "credentials": 401, "email_unverified": 403, "rate_limit": 429, "busy": 503, "invalid_token": 400, "password_unchanged": 422}[failure.Code]
+		status := map[string]int{"validation": 422, "invalid_nickname": 422, "email_exists": 409, "nickname_exists": 409, "credentials": 401, "email_unverified": 403, "email_already_verified": 409, "rate_limit": 429, "busy": 503, "invalid_token": 400, "password_unchanged": 422}[failure.Code]
 		if status == 0 {
 			status = 500
 		}
@@ -429,6 +430,24 @@ type emailRequest struct {
 func (s *Server) resend(w http.ResponseWriter, r *http.Request) error {
 	return s.emailAction(w, r, "verify")
 }
+
+type changeUnverifiedEmailRequest struct {
+	Email    string `json:"email"`
+	NewEmail string `json:"newEmail"`
+	Password string `json:"password"`
+}
+
+func (s *Server) changeUnverifiedEmail(w http.ResponseWriter, r *http.Request) error {
+	in, err := decode[changeUnverifiedEmailRequest](r)
+	if err != nil {
+		return err
+	}
+	if err := s.accounts.ChangeUnverifiedEmail(r.Context(), in.Email, in.NewEmail, in.Password, s.clientIP(r)); err != nil {
+		return err
+	}
+	return accepted(w)
+}
+
 func (s *Server) forgot(w http.ResponseWriter, r *http.Request) error {
 	return s.emailAction(w, r, "reset")
 }

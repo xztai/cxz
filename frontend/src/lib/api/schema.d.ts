@@ -93,6 +93,7 @@ export interface paths {
 		};
 		get?: never;
 		put?: never;
+		/** @description Correct credentials for an unverified email return 403 email_unverified without creating a session. */
 		post: operations['login'];
 		delete?: never;
 		options?: never;
@@ -159,6 +160,23 @@ export interface paths {
 		get?: never;
 		put?: never;
 		post: operations['resendVerification'];
+		delete?: never;
+		options?: never;
+		head?: never;
+		patch?: never;
+		trace?: never;
+	};
+	'/auth/change-unverified-email': {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		get?: never;
+		put?: never;
+		/** @description Checks the current email and password under a user row lock. Only unverified, unblocked accounts can change address. Updates the email and queues a fresh verification link atomically, invalidating the previous link. Does not create a session. Limited to 5 attempts/IP/15 minutes and the shared failed-login limits. */
+		post: operations['changeUnverifiedEmail'];
 		delete?: never;
 		options?: never;
 		head?: never;
@@ -1319,6 +1337,39 @@ export interface operations {
 		};
 		responses: {
 			202: components['responses']['Message'];
+			default: components['responses']['Error'];
+		};
+	};
+	changeUnverifiedEmail: {
+		parameters: {
+			query?: never;
+			header?: never;
+			path?: never;
+			cookie?: never;
+		};
+		requestBody: {
+			content: {
+				'application/json': {
+					/** Format: email */
+					email: string;
+					/** Format: email */
+					newEmail: string;
+					password: string;
+				};
+			};
+		};
+		responses: {
+			202: components['responses']['Message'];
+			401: components['responses']['Error'];
+			/** @description email_exists or email_already_verified */
+			409: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Error'];
+				};
+			};
 			default: components['responses']['Error'];
 		};
 	};
