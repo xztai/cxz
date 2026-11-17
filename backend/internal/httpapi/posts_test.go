@@ -239,7 +239,7 @@ func TestIntegrationPublicationsAccessAndMedia(t *testing.T) {
 			}
 			_ = resp.Body.Close()
 			if resp.StatusCode != 403 {
-				t.Fatal("anonymous MinIO access", resp.StatusCode)
+				t.Fatal("anonymous S3 access", resp.StatusCode)
 			}
 		}
 	}

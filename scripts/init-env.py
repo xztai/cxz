@@ -8,8 +8,8 @@ import secrets
 path = Path(__file__).resolve().parent.parent / '.env'
 settings = {
     'APP_ORIGIN': 'http://localhost:8080', 'APP_PORT': '8080', 'COOKIE_SECURE': 'false',
-    'POSTGRES_PASSWORD': secrets.token_hex(24), 'MINIO_ROOT_USER': 'etheyl',
-    'MINIO_ROOT_PASSWORD': secrets.token_hex(24), 'MAILPIT_PORT': '8025',
+    'POSTGRES_PASSWORD': secrets.token_hex(24), 'RUSTFS_ACCESS_KEY': 'etheyl',
+    'RUSTFS_SECRET_KEY': secrets.token_hex(24), 'MAILPIT_PORT': '8025',
     'MIGRATE_DATABASE_PASSWORD': secrets.token_hex(24),
     'API_DATABASE_PASSWORD': secrets.token_hex(24),
     'WORKER_DATABASE_PASSWORD': secrets.token_hex(24),

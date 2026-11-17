@@ -138,7 +138,7 @@ nickname, вход, `/me`, отзыв сессий после reset и тест�
 В CI drill выполняется после Go-тестов. Ежемесячно повторять на production-backup
 в изолированном окружении без исходящего SMTP.
 
-MinIO хранит аватары и обложки; ключи и метаданные находятся в PostgreSQL.
+RustFS хранит аватары, обложки и медиа публикаций. Ключи и метаданные находятся в PostgreSQL.
 `storage-init` создаёт приватный bucket до API. Согласованно сохранять bucket и БД;
 проверять восстановление изображений через публичные страницы. Включить versioning/репликацию
 в отдельный storage account, согласовать SQL/object snapshot и проверить восстановление
@@ -150,7 +150,7 @@ MinIO хранит аватары и обложки; ключи и метада�
 точный APP_ORIGIN=https://домен и перезаписывать X-Real-IP; `COOKIE_SECURE=true`,
 `TRUST_PROXY=true` только за этим ingress. Убрать Mailpit и его порт, настроить внешний
 SMTP_HOST/PORT/FROM и credentials, `SMTP_INSECURE=false`. Проверить доставку,
-SPF/DKIM/DMARC и recovery, не публиковать PostgreSQL/MinIO/worker наружу. Локальный
+SPF/DKIM/DMARC и recovery, не публиковать PostgreSQL, RustFS и worker наружу. Локальный
 compose остаётся HTTP-окружением разработки и сам по себе этим требованиям не отвечает.
 
 Политика до публичного запуска: неподтверждённые неадминистративные аккаунты хранить
@@ -172,7 +172,7 @@ Actions — SHA, отчёты зависимостей/образов — artifa
 ## Advisory при проверке исправлений
 
 Grype обнаружил CVE-2026-4738 у zlib 1.3.2-r1 в прежнем backend image. В Dockerfile
-backend/frontend/MinIO закреплён zlib=1.4-r0 — исправление для Alpine 3.24 указано
+backend и frontend закреплён zlib=1.4-r0 — исправление для Alpine 3.24 указано
 в [официальном трекере Alpine](https://security.alpinelinux.org/vuln/CVE-2026-4738).
 Результат повторных image scans указан в дополнении REVIEW.md.
 
@@ -182,23 +182,74 @@ backend/frontend/MinIO закреплён zlib=1.4-r0 — исправление
 Не передавать недоверенные объекты в операции merge; это не доказательство эксплуатации
 через существующие формы etheyl. High/Critical-пропусков в CI не добавлено.
 
-MinIO RELEASE.2025-10-15T17-29-55Z содержит дополнительные High/Critical advisory
-в Go-зависимостях (grpc, x/net, x/crypto, thrift, amqp091-go и др.). Это остаётся
-[последним официальным релизом upstream](https://github.com/minio/minio/releases/tag/RELEASE.2025-10-15T17-29-55Z).
-По решению владельца MinIO сохранён, его security job остаётся блокирующим; bypass
-и suppressions не добавлены. До отдельного обновления/замены и проверки совместимости
-хранилище не подключать к реальным данным. Это дополнительная находка нового сканера,
-а не устранённая проблема. zlib=1.4-r0 применён и к MinIO, но не исправляет его Go-модули.
+Текущий `pnpm audit --audit-level high` блокируется из-за
+[GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf)
+в транзитивной dev-зависимости `picomatch@4.0.7`. Исправленная версия пока не опубликована.
+
+Grype проверяет образ RustFS по digest из `compose.yaml` с тем же порогом High/Critical.
 В frontend runtime удалён ненужный npm с его уязвимыми зависимостями; Node и зависимости
 приложения сохранены, сборка продолжает использовать npm/pnpm в build stage.
 
+## Перенос медиа из MinIO в RustFS
+
+В существующем Compose-проекте оставьте старый контейнер MinIO в сети `data` на время
+переноса. Если он остановлен, запустите его через прежний Compose-файл с тем же именем
+проекта и volume `minio_data`. Сохраните прежний Compose-файл и credentials для отката.
+RustFS использует отдельный volume `rustfs_data`. Перенос выполняется через S3 API
+с тем же `S3_BUCKET`, чтобы ключи в PostgreSQL продолжили работать.
+При использовании versioning или Object Lock отдельно перенесите историю и политики
+по [руководству RustFS](https://rustfs.com/blog/migrating-from-minio-to-rustfs-a-technical-guide/).
+
+```sh
+make init
+docker compose up -d --wait rustfs
+docker compose run --rm --no-deps storage-init
+```
+
+Создайте отдельный конфиг rclone на хосте.
+
+```sh
+rclone_config="$(mktemp -d)/rclone.conf"
+rclone --config "$rclone_config" config
+chmod 600 "$rclone_config"
+```
+
+Настройте два S3 remote с регионом `us-east-1` и path-style адресацией.
+Для `legacy` используйте provider `Minio`, endpoint `http://minio:9000`
+и действующие `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD`. Для `target` используйте provider
+`Other`, endpoint `http://rustfs:9000` и новые `RUSTFS_ACCESS_KEY`/`RUSTFS_SECRET_KEY`.
+Команды ниже используют стандартные имена сети и bucket. При переопределении
+имени Compose-проекта или `S3_BUCKET` подставьте свои.
+
+```sh
+bucket=etheyl-media
+rc() {
+  docker run --rm --network etheyl_data \
+    -v "$rclone_config:/config/rclone/rclone.conf:ro" \
+    rclone/rclone:1.76.0 "$@"
+}
+docker compose stop api worker
+# Сделайте согласованный backup PostgreSQL по инструкции выше и сохраните volume MinIO.
+rc copy --metadata --ignore-times --s3-no-check-bucket "legacy:$bucket" "target:$bucket" &&
+  rc check --download "legacy:$bucket" "target:$bucket"
+```
+
+До завершения `check` оставьте API и worker остановленными. После успешной проверки
+выполните `make up`. Проверьте доступ к перенесённым
+изображениям через приложение, загрузку и ограничения доступа к приватным медиа.
+Затем остановите старый MinIO и сохраните его volume для отката. До возобновления
+записи откат выполняется запуском API и worker с прежним Compose-файлом. После
+возобновления записи перед откатом остановите API и worker и перенесите обратно
+новые объекты либо восстановите согласованный backup PostgreSQL и медиа.
+Если старый тестовый контейнер `test-minio` занимает порт 9002, остановите его
+или запустите `TEST_S3_PORT=0 make test-integration`.
 
 ## Медиа и уровни
 
 `S3_BUCKET` по умолчанию `etheyl-media`. Одноразовый `storage-init` проверяет/создаёт
 bucket и сбрасывает анонимную policy. Compose использует внутренний адрес
-`minio:9000`, `S3_SECURE=false`; при отдельном S3 с TLS задайте `S3_SECURE=true`.
-Локальные root-credentials MinIO доступны только внутри Compose; для production
+`rustfs:9000` и `S3_SECURE=false`. При отдельном S3 с TLS задайте `S3_SECURE=true`.
+Локальные credentials RustFS задаются через `RUSTFS_ACCESS_KEY` и `RUSTFS_SECRET_KEY`. Для production
 выдайте API отдельные credentials на GetObject/PutObject/DeleteObject этого bucket,
 а инициализацию policy выполняйте отдельной deployment-ролью.
 
@@ -241,7 +292,7 @@ Backup должен включать все объекты bucket и новые 
 
 API также очищает локальные `etheyl-upload-*` старше часа после аварийных остановок;
 новые файлы, каталоги и символьные ссылки не удаляются. Worker находится в отдельном
-контейнере и отвечает за очистку MinIO и записей БД.
+контейнере и отвечает за очистку RustFS и записей БД.
 
 
 ## Подписки и ЮKassa

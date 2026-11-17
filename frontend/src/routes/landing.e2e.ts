@@ -14,12 +14,13 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('credentials cannot be submitted before hydration or with JavaScript disabled', async ({
-	browser
+	browser,
+	baseURL
 }) => {
-	const context = await browser.newContext({ javaScriptEnabled: false });
+	const context = await browser.newContext({ baseURL, javaScriptEnabled: false });
 	const page = await context.newPage();
 	for (const path of ['/', '/login']) {
-		await page.goto(`http://127.0.0.1:4173${path}`);
+		await page.goto(path);
 		await expect(page.getByLabel('Пароль', { exact: true })).toBeDisabled();
 		await expect(page.locator('form')).toHaveAttribute('method', 'POST');
 		await expect(page.locator('form button[type="submit"]')).toBeDisabled();
@@ -50,7 +51,7 @@ test('registration sends exact password with same-origin CSRF cookie and header;
 		const request = route.request();
 		expect(request.headers()['x-csrf-token']).toBe(csrf);
 		expect(request.headers().cookie).toContain(`csrf=${csrf}`);
-		expect(request.headers().origin).toBe('http://127.0.0.1:4173');
+		expect(request.headers().origin).toBe(new URL(page.url()).origin);
 		expect(request.postDataJSON()).toEqual({
 			email: user.email,
 			nickname: user.nickname,
@@ -347,7 +348,7 @@ test('email correction reauthenticates, handles errors and persists the new addr
 		attempts++;
 		expect(route.request().headers()['x-csrf-token']).toBe(csrf);
 		expect(route.request().headers().cookie).toContain(`csrf=${csrf}`);
-		expect(route.request().headers().origin).toBe('http://127.0.0.1:4173');
+		expect(route.request().headers().origin).toBe(new URL(page.url()).origin);
 		expect(route.request().postDataJSON()).toEqual({
 			email: user.email,
 			newEmail: correctedEmail,

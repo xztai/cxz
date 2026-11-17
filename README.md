@@ -4,14 +4,16 @@ MVP сервиса авторских подписок: авторизация, 
 
 ## Запуск
 
-Нужны Docker Engine с Compose v2+ и Python 3 для генерации локальных секретов. Для проверок вне Docker — Go 1.27.4, Node 26.13.0 и pnpm 12.18.0
+Нужны Docker Engine с Compose v2+ и Python 3 для генерации локальных секретов. Для проверок вне Docker — Go 1.27.4, Node 26.13.1 и pnpm 12.18.0
+
+Если в текущем окружении уже есть данные MinIO, сначала выполните [перенос медиа в RustFS](docs/operations.md#перенос-медиа-из-minio-в-rustfs).
 
 ```sh
 make init
 make up
 ```
 
-`make init` создаёт `.env` со случайными паролями ролей PostgreSQL и MinIO, ключом шифрования outbox и правами `0600`. В существующий файл дописывает только отсутствующие настройки, сохраняя прежние значения. Первая сборка MinIO занимает несколько минут. `make up` собирает образы, выполняет goose-миграции и ждёт готовности сервисов.
+`make init` создаёт `.env` со случайными паролями ролей PostgreSQL, секретным ключом RustFS, ключом шифрования outbox и правами `0600`. В существующий файл дописывает только отсутствующие настройки, сохраняя прежние значения. `make up` собирает образы, выполняет goose-миграции и ждёт готовности сервисов.
 
 - Приложение: **http://localhost:8080**.
 - Локальная почта: **http://localhost:8025** (Mailpit).
@@ -37,7 +39,7 @@ docker compose logs -f api worker
 make down
 ```
 
-Остановка сохраняет volumes `postgres_data` и `minio_data`. PostgreSQL, API и MinIO не публикуют порты на хост; консоль MinIO отключена. Одноразовый `storage-init` создаёт bucket `etheyl-media` (или `S3_BUCKET`) и удаляет публичную policy перед запуском API. Изображения доступны через API, прямой анонимный доступ к bucket закрыт.
+Остановка сохраняет volumes `postgres_data` и `rustfs_data`. PostgreSQL, API и RustFS доступны во внутренних сетях Compose. Консоль RustFS отключена. Одноразовый `storage-init` создаёт bucket `etheyl-media` (или `S3_BUCKET`) и удаляет публичную policy перед запуском API. Изображения доступны через API, прямой анонимный доступ к bucket закрыт.
 
 ## Первый администратор
 
@@ -74,7 +76,7 @@ frontend/
   .agents/skills/        официальные Svelte skills
   .codex/config.toml     локальный Svelte MCP для Codex
 docs/openapi.yaml        контракт API
-infra/                   reverse proxy и сборка MinIO
+infra/                   конфигурация reverse proxy и ролей PostgreSQL
 compose.yaml             локальное окружение
 compose.test.yaml        отдельная временная БД тестов
 ```
@@ -87,7 +89,8 @@ compose.test.yaml        отдельная временная БД тестов
 cd frontend
 pnpm install --frozen-lockfile
 pnpm peers check
-pnpm test:unit
+pnpm exec playwright install chromium
+pnpm test:unit --run
 pnpm check
 pnpm build
 pnpm generate:api
@@ -99,19 +102,19 @@ make test-integration
 make test-restore
 ```
 
-`make test-integration` запускает отдельный PostgreSQL на `127.0.0.1:5433` и MinIO на `127.0.0.1:9002`, применяет миграции и выполняет Go-тесты с `-race`. Интеграционные тесты разрешены только на БД с суффиксом `_test` и очищают её таблицы. Обычный `make test` выполняет unit-тесты; интеграционные пропускаются без `TEST_DATABASE_URL`.
+`make test-integration` запускает отдельный PostgreSQL на `127.0.0.1:5433` и RustFS на `127.0.0.1:9002`, применяет миграции и выполняет Go-тесты с `-race`. `TEST_S3_PORT=0` поручает Docker выбрать свободный порт для RustFS. Интеграционные тесты разрешены только на БД с суффиксом `_test` и очищают её таблицы. Обычный `make test` выполняет unit-тесты; интеграционные пропускаются без `TEST_DATABASE_URL`.
 
-С запущенным приложением:
+Playwright по умолчанию собирает и запускает frontend через Vite preview. Чтобы использовать запущенное приложение в Compose, задайте `E2E_BASE_URL`.
 
 ```sh
 cd frontend
 pnpm exec playwright install chromium
-pnpm test:e2e
+pnpm exec playwright test
 ```
 
-Playwright проверяет интерфейс регистрации, доставку письма worker через Mailpit, подтверждение, ошибочный и успешный вход, SSR после перезагрузки, восстановление, отзыв старой сессии, запрет `/admin`, выход, адаптивность и клавиатурную навигацию. Использует уникальные тестовые email и оставляет эти аккаунты в локальной БД. Повторные прогоны учитываются обычными лимитами регистрации; используйте отдельное чистое тестовое окружение или дождитесь окончания 15-минутного окна.
+Браузерные тесты проверяют регистрацию, вход и выход, подтверждение и смену email, поиск авторов и адаптивность. Для этих сценариев Playwright подменяет ответы API.
 
-CI выполняет sqlc-генерацию с проверкой изменений, Go-тесты с PostgreSQL и `-race`, golangci-lint, проверку сгенерированных API-типов, peer-зависимостей, Svelte/TypeScript, production-сборку, чистый запуск Compose и Playwright на двух размерах экрана. GitHub Actions закреплены по SHA. Security workflow по PR/push и расписанию проверяет Go/npm, секреты и три итоговых образа, сохраняет отчёты и CycloneDX. Дополнительные проверки: права runtime-ролей и реальный pg_dump/pg_restore. Подробности исправления аудита — [REVIEW.md](REVIEW.md), эксплуатация — [docs/operations.md](docs/operations.md). Локальный отчёт первого этапа — [docs/stage-1.md](docs/stage-1.md).
+CI выполняет sqlc-генерацию с проверкой изменений, Go-тесты с PostgreSQL и `-race`, golangci-lint, проверку сгенерированных API-типов, peer-зависимостей, Svelte/TypeScript, production-сборку, чистый запуск Compose и браузерные тесты Playwright на разных размерах экрана. GitHub Actions закреплены по SHA. Security workflow по PR/push и расписанию проверяет Go/npm, секреты и три итоговых образа, сохраняет отчёты и CycloneDX. Дополнительные проверки: права runtime-ролей и реальный pg_dump/pg_restore. Подробности исправления аудита — [REVIEW.md](REVIEW.md), эксплуатация — [docs/operations.md](docs/operations.md). Локальный отчёт первого этапа — [docs/stage-1.md](docs/stage-1.md).
 
 ## Svelte MCP и skills
 
@@ -166,7 +169,7 @@ pnpm exec svelte-mcp svelte-autofixer src/lib/components/AuthForm.svelte --svelt
 - Все изменения привязаны к серверной сессии владельца и защищены Origin/CSRF;
   переданный ID другого автора не даёт доступа.
 
-Go использует `minio-go/v7`. Изображения принимаются сырыми байтами через
+Go работает с RustFS через S3 SDK `minio-go/v7`. Изображения принимаются сырыми байтами через
 `PUT /api/v1/me/profile/images/{avatar|cover}`. Поддерживаются JPEG, PNG и WebP,
 до 5 МиБ, 8192 пикселей по стороне и 16 миллионов пикселей. MIME должен совпадать
 с реальным форматом; полное декодирование и повторное кодирование удаляют метаданные
@@ -176,13 +179,12 @@ Go использует `minio-go/v7`. Изображения принимают
 
 Для Go вне Compose задайте `S3_ENDPOINT` (host:port), `S3_ACCESS_KEY`, `S3_SECRET_KEY`,
 `S3_BUCKET=etheyl-media`, `S3_SECURE=false` для локального HTTP. Перед стартом выполните
-`etheyl storage-init`. Compose передаёт эти настройки сам; порты MinIO наружу не открыты.
+`etheyl storage-init`. Compose передаёт эти настройки сам. RustFS доступен внутри сети `data`.
 Миграция `00004_creators.sql` создаёт таблицы и DB-защиту истории используемых уровней.
 
-Проверки: PostgreSQL integration tests покрывают владение, коллизии адресов,
-иерархию, архив, порядок и метаданные; unit tests — небезопасные изображения;
-Playwright проверяет оформление профиля, реальные загрузки MinIO, уровни и поиск
-в desktop/mobile, затем прежние сценарии восстановления аккаунта.
+Интеграционные тесты PostgreSQL покрывают владение, коллизии адресов,
+иерархию, архив, порядок и метаданные. Unit-тесты проверяют обработку небезопасных
+изображений. Загрузку и выдачу объектов через RustFS проверяют тесты медиа публикаций.
 
 
 ## Публикации и приватные файлы
@@ -203,7 +205,7 @@ HTML и опасных схем ссылок. Пост доступен всем
 `bodyMarkdown`, `bodyHtml`, `media` полностью отсутствуют. Черновики посторонним
 возвращают 404. Доступ проверяется повторно для каждого оригинала, миниатюры,
 HEAD и Range, до условных HTTP-ответов. API и SSR используют no-store; закрытый
-контент не получает общих кэшей или прямых/подписанных ссылок MinIO.
+контент не получает общих кэшей или прямых/подписанных ссылок S3.
 
 Файл загружается сырыми байтами через `POST /api/v1/me/posts/<id>/media` с query
 `kind=image|audio|video|attachment`, `filename` и обычной Origin/CSRF-защитой.
@@ -228,7 +230,7 @@ MP4, WebM, Ogg. Реальное воспроизведение зависит �
 Начиная с этапа 4 выдача доступа выполняется платёжным сервисом после серверной
 проверки ЮKassa; runtime API и worker имеют необходимые права записи. Интеграционные тесты создают тестовые подписки непосредственно в
 изолированной БД: нужный/старший, младший, чужой, будущий, истёкший и отозванный
-уровень. Тесты с настоящим MinIO проверяют приватность bucket, Range/HEAD, оригиналы,
+уровень. Тесты с RustFS проверяют приватность bucket, Range/HEAD, оригиналы,
 миниатюры, границу 100 МиБ и очистку. Запуск — `make test-integration`.
 
 Браузерные тесты публикаций запускаются отдельно от auth, на свежем тестовом

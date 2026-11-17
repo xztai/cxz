@@ -15,7 +15,8 @@ test:
 	cd backend && go test ./...
 test-integration:
 	docker compose -p etheyl-tests -f compose.test.yaml up -d --wait
-	cd backend && TEST_DATABASE_URL=postgres://etheyl_test:etheyl_test@127.0.0.1:5433/etheyl_test?sslmode=disable TEST_S3_ENDPOINT=127.0.0.1:9002 go test -race -count=1 ./...
+	endpoint=$$(docker compose -p etheyl-tests -f compose.test.yaml port test-rustfs 9000) && \
+		cd backend && TEST_DATABASE_URL=postgres://etheyl_test:etheyl_test@127.0.0.1:5433/etheyl_test?sslmode=disable TEST_S3_ENDPOINT="$$endpoint" go test -race -count=1 ./...
 check: test lint
 	cd frontend && pnpm check && pnpm build
 e2e:
