@@ -325,15 +325,31 @@ func (s *Server) ownPosts(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	rows, err := s.q.ListOwnPosts(r.Context(), store.ListOwnPostsParams{AuthorID: u.ID, Offset: offset})
+	ctx := r.Context()
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
+		return err
+	}
+	defer socialRollback(tx)
+	q := store.New(tx)
+	rows, err := q.ListOwnPosts(ctx, store.ListOwnPostsParams{AuthorID: u.ID, Offset: offset})
+	if err != nil {
+		return err
+	}
+	hasPublishedPost, err := q.HasPublishedPost(ctx, u.ID)
+	if err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
 	posts := make([]PostSummary, 0, min(len(rows), 24))
 	for _, p := range rows[:min(len(rows), 24)] {
 		posts = append(posts, postSummary(p.ID, u.Nickname, p.Title, p.Teaser, p.MinimumTierID, p.PublishedAt))
 	}
-	return respond(w, 200, map[string]any{"posts": posts, "hasMore": len(rows) > 24})
+	return respond(w, 200, map[string]any{
+		"posts": posts, "hasMore": len(rows) > 24, "hasPublishedPost": hasPublishedPost,
+	})
 }
 
 func (s *Server) authorPosts(w http.ResponseWriter, r *http.Request) error {

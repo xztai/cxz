@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { invalidate } from '$app/navigation';
 	import { api, errorMessage } from '#lib/api/client.js';
 	import { getSession } from '#lib/session.svelte.js';
 	const session = getSession();
@@ -13,7 +12,6 @@
 		try {
 			await api.logout();
 			session.setUser(null);
-			await invalidate('studio:profile');
 		} catch (error) {
 			message = errorMessage(error);
 		} finally {

@@ -3,8 +3,15 @@
 	import { resolve } from '$app/paths';
 	import { untrack } from 'svelte';
 	import { api, errorMessage, type Post, type PostInput, type Tier } from '#lib/api/client.js';
+	import { studioEditorIsActive } from '#lib/session.svelte.js';
 
-	let { initialPost = null, tiers }: { initialPost?: Post | null; tiers: Tier[] | null } = $props();
+	let {
+		initialPost = null,
+		tiers,
+		ownerId: loadedOwnerId
+	}: { initialPost?: Post | null; tiers: Tier[] | null; ownerId: string } = $props();
+	const ownerId = untrack(() => loadedOwnerId);
+	const isActive = studioEditorIsActive(ownerId);
 	const initial = untrack(() => initialPost);
 	let post = $state.raw(initial);
 	let fields = $state<PostInput>({
@@ -33,45 +40,52 @@
 
 	async function save(event: SubmitEvent) {
 		event.preventDefault();
-		if (operation) return;
+		if (operation || !isActive()) return;
 		const publish = (event.submitter as HTMLButtonElement | null)?.value === 'publish';
 		const input = { ...fields };
 		operation = publish ? 'publish' : 'save';
 		message = '';
 		confirmation = '';
 		try {
-			post = (post ? await api.updatePost(post.id, input) : await api.createPost(input)).post;
+			const saved = post
+				? await api.updatePost(ownerId, post.id, input)
+				: await api.createPost(ownerId, input);
+			if (!isActive()) return;
+			post = saved.post;
 			fields.title = post.title;
 
 			if (publish) {
-				const result = await api.publishPost(post.id).catch(() => null);
+				const result = await api.publishPost(ownerId, post.id).catch(() => null);
+				if (!isActive()) return;
 				if (result) post = result.post;
 				else message = 'Черновик сохранён. Не удалось опубликовать пост. Повторите попытку.';
 			}
 			await invalidate('studio:overview');
-			if (message) return;
+			if (message || !isActive()) return;
 			confirmation = publish ? 'Пост опубликован.' : 'Изменения сохранены.';
 			if (!initial) {
 				await goto(resolve('/studio/posts/[id]/edit', { id: post.id }), { replace: true });
 			}
 		} catch (error) {
-			message = errorMessage(error);
+			if (isActive()) message = errorMessage(error);
 		} finally {
 			operation = undefined;
 		}
 	}
 
 	async function unpublish() {
-		if (operation || !post?.publishedAt) return;
+		if (operation || !post?.publishedAt || !isActive()) return;
 		operation = 'unpublish';
 		message = '';
 		confirmation = '';
 		try {
-			post = (await api.unpublishPost(post.id)).post;
+			const result = await api.unpublishPost(ownerId, post.id);
+			if (!isActive()) return;
+			post = result.post;
 			confirmation = 'Пост снят с публикации.';
 			await invalidate('studio:overview');
 		} catch (error) {
-			message = errorMessage(error);
+			if (isActive()) message = errorMessage(error);
 		} finally {
 			operation = undefined;
 		}

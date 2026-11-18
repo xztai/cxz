@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import AuthorProfileHeader from '#lib/components/AuthorProfileHeader.svelte';
 	import SiteHeader from '#lib/components/SiteHeader.svelte';
@@ -9,26 +8,32 @@
 	let profile = $state<Profile | null>(null);
 	let busy = $state(true);
 	let message = $state('');
-	let controller: AbortController | undefined;
-	onMount(() => {
-		void load();
-		return () => controller?.abort();
-	});
-	async function load() {
-		controller?.abort();
-		controller = new AbortController();
-		busy = true;
+	let retryCount = $state(0);
+
+	$effect(() => {
+		const nickname = data.nickname;
+		// A retry reloads the profile even when the nickname is unchanged.
+		void retryCount;
+		const controller = new AbortController();
+		profile = null;
 		message = '';
+		busy = true;
+		void load(nickname, controller.signal);
+		return () => controller.abort();
+	});
+
+	async function load(nickname: string, signal: AbortSignal) {
 		try {
-			profile = (await api.author(data.nickname, controller.signal)).profile;
+			const result = await api.author(nickname, signal);
+			if (!signal.aborted) profile = result.profile;
 		} catch (error) {
-			if (!controller.signal.aborted)
+			if (!signal.aborted)
 				message =
 					error instanceof ApiError && error.status === 404
 						? 'Страница автора не найдена.'
 						: errorMessage(error);
 		} finally {
-			busy = false;
+			if (!signal.aborted) busy = false;
 		}
 	}
 </script>
@@ -40,7 +45,8 @@
 	<div aria-live="polite" aria-busy={busy}>
 		{#if busy}<p>Загружаем страницу…</p>{:else if message}<h1>Не удалось открыть страницу</h1>
 			<p class="feedback error-feedback">{message}</p>
-			<button class="button button-outline" type="button" onclick={load}>Попробовать ещё раз</button
+			<button class="button button-outline" type="button" onclick={() => retryCount++}
+				>Попробовать ещё раз</button
 			>{:else if profile}
 			<AuthorProfileHeader {profile} />
 		{/if}

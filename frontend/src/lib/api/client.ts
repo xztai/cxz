@@ -29,7 +29,11 @@ export class ApiError extends Error {
 	}
 }
 
+export const studioAccountFailure = 'studio-account-failure';
+
 type RequestOptions = {
+	// Studio bootstrap uses null until it has discovered the current owner.
+	expectedUserId?: string | null;
 	body?: unknown;
 	signal?: AbortSignal;
 	method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -40,12 +44,14 @@ async function request<T>(
 	path: string,
 	{
 		body,
+		expectedUserId,
 		signal,
 		method = body === undefined ? 'GET' : 'POST',
 		fetcher = fetch
 	}: RequestOptions = {}
 ): Promise<T> {
 	const headers = new Headers({ Accept: 'application/json' });
+	if (expectedUserId != null) headers.set('X-Expected-User-ID', expectedUserId);
 	const rawBody = body instanceof Blob ? body : undefined;
 	if (method !== 'GET') {
 		const csrf = await request<Result<'csrf', 200>>('/auth/csrf', { fetcher });
@@ -70,11 +76,15 @@ async function request<T>(
 	}
 	if (!response.ok) {
 		const payload: components['schemas']['Error'] | null = await response.json().catch(() => null);
-		throw new ApiError(
-			payload?.error?.code ?? 'unavailable',
-			response.status,
-			Number(response.headers.get('Retry-After')) || 0
-		);
+		const code = payload?.error?.code ?? 'unavailable';
+		if (
+			typeof window !== 'undefined' &&
+			expectedUserId !== undefined &&
+			(response.status === 401 || code === 'account_changed')
+		) {
+			window.dispatchEvent(new CustomEvent(studioAccountFailure, { detail: expectedUserId }));
+		}
+		throw new ApiError(code, response.status, Number(response.headers.get('Retry-After')) || 0);
 	}
 	try {
 		return await response.json();
@@ -105,55 +115,83 @@ export const api = {
 	reset: (token: string, password: string) =>
 		request<Result<'resetPassword', 200>>('/auth/reset-password', { body: { token, password } }),
 	ownProfile: (fetcher?: typeof fetch) =>
-		request<Result<'ownProfile', 200>>('/me/profile', { fetcher }),
-	saveProfile: (input: ProfileInput) =>
-		request<Result<'saveProfile', 200>>('/me/profile', { body: input, method: 'PUT' }),
-	uploadProfileImage: (kind: ProfileImageKind, image: Blob) =>
+		request<Result<'ownProfile', 200>>('/me/profile', { expectedUserId: null, fetcher }),
+	saveProfile: (expectedUserId: string, input: ProfileInput) =>
+		request<Result<'saveProfile', 200>>('/me/profile', {
+			expectedUserId,
+			body: input,
+			method: 'PUT'
+		}),
+	uploadProfileImage: (expectedUserId: string, kind: ProfileImageKind, image: Blob) =>
 		request<Result<'uploadProfileImage', 200>>(`/me/profile/images/${kind}`, {
+			expectedUserId,
 			body: image,
 			method: 'PUT'
 		}),
-	removeProfileImage: (kind: ProfileImageKind) =>
-		request<Result<'removeProfileImage', 200>>(`/me/profile/images/${kind}`, { method: 'DELETE' }),
-	ownTiers: (fetcher?: typeof fetch) => request<Result<'ownTiers', 200>>('/me/tiers', { fetcher }),
-	createTier: (input: TierInput) =>
-		request<Result<'createTier', 201>>('/me/tiers', { body: input }),
-	updateTier: (id: string, input: TierInput) =>
+	removeProfileImage: (expectedUserId: string, kind: ProfileImageKind) =>
+		request<Result<'removeProfileImage', 200>>(`/me/profile/images/${kind}`, {
+			expectedUserId,
+			method: 'DELETE'
+		}),
+	ownTiers: (expectedUserId: string, fetcher?: typeof fetch) =>
+		request<Result<'ownTiers', 200>>('/me/tiers', { expectedUserId, fetcher }),
+	createTier: (expectedUserId: string, input: TierInput) =>
+		request<Result<'createTier', 201>>('/me/tiers', { expectedUserId, body: input }),
+	updateTier: (expectedUserId: string, id: string, input: TierInput) =>
 		request<Result<'updateTier', 200>>(`/me/tiers/${encodeURIComponent(id)}`, {
+			expectedUserId,
 			body: input,
 			method: 'PUT'
 		}),
-	archiveTier: (id: string) =>
+	archiveTier: (expectedUserId: string, id: string) =>
 		request<Result<'archiveTier', 200>>(`/me/tiers/${encodeURIComponent(id)}/archive`, {
+			expectedUserId,
 			method: 'POST'
 		}),
-	deleteTier: (id: string) =>
-		request<Result<'deleteTier', 200>>(`/me/tiers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-	reorderTiers: (body: operations['reorderTiers']['requestBody']['content']['application/json']) =>
-		request<Result<'reorderTiers', 200>>('/me/tiers/order', { body, method: 'PUT' }),
-	ownPosts: (offset = 0, fetcher?: typeof fetch) =>
+	deleteTier: (expectedUserId: string, id: string) =>
+		request<Result<'deleteTier', 200>>(`/me/tiers/${encodeURIComponent(id)}`, {
+			expectedUserId,
+			method: 'DELETE'
+		}),
+	reorderTiers: (
+		expectedUserId: string,
+		body: operations['reorderTiers']['requestBody']['content']['application/json']
+	) =>
+		request<Result<'reorderTiers', 200>>('/me/tiers/order', {
+			expectedUserId,
+			body,
+			method: 'PUT'
+		}),
+	ownPosts: (expectedUserId: string, offset = 0, fetcher?: typeof fetch) =>
 		request<Result<'ownPosts', 200>>(offset ? `/me/posts?offset=${offset}` : '/me/posts', {
+			expectedUserId,
 			fetcher
 		}),
-	ownPost: (id: string, fetcher?: typeof fetch) =>
-		request<Result<'ownPost', 200>>(`/me/posts/${encodeURIComponent(id)}`, { fetcher }),
-	createPost: (input: PostInput) =>
-		request<Result<'createPost', 201>>('/me/posts', { body: input }),
-	updatePost: (id: string, input: PostInput) =>
+	ownPost: (expectedUserId: string, id: string, fetcher?: typeof fetch) =>
+		request<Result<'ownPost', 200>>(`/me/posts/${encodeURIComponent(id)}`, {
+			expectedUserId,
+			fetcher
+		}),
+	createPost: (expectedUserId: string, input: PostInput) =>
+		request<Result<'createPost', 201>>('/me/posts', { expectedUserId, body: input }),
+	updatePost: (expectedUserId: string, id: string, input: PostInput) =>
 		request<Result<'updatePost', 200>>(`/me/posts/${encodeURIComponent(id)}`, {
+			expectedUserId,
 			body: input,
 			method: 'PUT'
 		}),
-	publishPost: (id: string) =>
+	publishPost: (expectedUserId: string, id: string) =>
 		request<Result<'publishPost', 200>>(`/me/posts/${encodeURIComponent(id)}/publish`, {
+			expectedUserId,
 			body: {}
 		}),
-	unpublishPost: (id: string) =>
+	unpublishPost: (expectedUserId: string, id: string) =>
 		request<Result<'unpublishPost', 200>>(`/me/posts/${encodeURIComponent(id)}/unpublish`, {
+			expectedUserId,
 			body: {}
 		}),
-	analytics: (fetcher?: typeof fetch) =>
-		request<Result<'analytics', 200>>('/me/analytics', { fetcher }),
+	analytics: (expectedUserId: string, fetcher?: typeof fetch) =>
+		request<Result<'analytics', 200>>('/me/analytics', { expectedUserId, fetcher }),
 	authors: (q: string, offset: number, signal?: AbortSignal) =>
 		request<Result<'listAuthors', 200>>(
 			`/authors?${new URLSearchParams({ q, offset: String(offset) })}`,

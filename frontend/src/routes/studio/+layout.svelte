@@ -1,16 +1,21 @@
 <script lang="ts">
-	import { invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import Icon from '#lib/components/Icon.svelte';
 	import SiteHeader from '#lib/components/SiteHeader.svelte';
+	import { getSession } from '#lib/session.svelte.js';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
 	let menuOpen = $state(false);
-	let retrying = $state(false);
+	const session = getSession();
+	const ownerId = $derived(
+		data.access.state === 'ready' && session.isStudioOwner(data.access.ownerId)
+			? data.access.ownerId
+			: null
+	);
 	const previewingProfile = $derived(
-		data.access.state === 'ready' &&
+		ownerId !== null &&
 			page.route.id === '/studio/profile' &&
 			(page.state.profilePreview || page.url.searchParams.has('preview'))
 	);
@@ -22,15 +27,6 @@
 		{ path: '/studio/posts', label: 'Посты', icon: 'post' },
 		{ path: '/studio/analytics', label: 'Аналитика', icon: 'analytics' }
 	] as const;
-
-	async function retry() {
-		retrying = true;
-		try {
-			await invalidate('studio:profile');
-		} finally {
-			retrying = false;
-		}
-	}
 </script>
 
 <svelte:head><meta name="robots" content="noindex" /></svelte:head>
@@ -55,7 +51,7 @@
 <SiteHeader />
 <div class={previewingProfile ? 'profile-preview' : 'studio'}>
 	<div class="shell studio-shell">
-		{#if data.access.state === 'ready' && !previewingProfile}
+		{#if ownerId !== null && !previewingProfile}
 			<aside class="sidebar">
 				<p>Студия</p>
 				{@render links()}
@@ -70,17 +66,25 @@
 			</details>
 		{/if}
 		<main id="main" class={{ 'simple-page': previewingProfile }} tabindex="-1">
-			{#if data.access.state === 'ready'}
-				{@render children()}
+			{#if ownerId !== null}
+				{#key ownerId}
+					{@render children()}
+				{/key}
 			{:else}
 				<h1 class="studio-heading">Студия</h1>
-				{#if data.access.state === 'unauthorized'}
+				{#if (session.verified && !session.user) || (data.access.state === 'unauthorized' && !session.user)}
 					<p class="studio-copy">Войдите в аккаунт, чтобы открыть студию.</p>
 					<a class="button button-primary" href={resolve('/login')}>Войти</a>
+				{:else if !session.ready || session.studioStatus === 'pending'}
+					<p class="studio-copy" role="status">Загружаем…</p>
 				{:else}
 					<p class="studio-copy" role="status">Не удалось загрузить студию.</p>
-					<button class="button button-outline" type="button" disabled={retrying} onclick={retry}>
-						{retrying ? 'Загружаем…' : 'Повторить'}
+					<button
+						class="button button-outline"
+						type="button"
+						onclick={() => session.recheckStudio()}
+					>
+						Повторить
 					</button>
 				{/if}
 			{/if}

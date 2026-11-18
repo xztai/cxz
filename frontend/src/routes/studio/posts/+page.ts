@@ -11,7 +11,7 @@ export const load: PageLoad = async ({ parent, depends, fetch, url }) => {
 	const { access } = await parent();
 	if (access.state !== 'ready' || !access.profile) return { offset, listing: null };
 	try {
-		return { offset, listing: await api.ownPosts(offset, fetch) };
+		return { offset, listing: await api.ownPosts(access.ownerId, offset, fetch) };
 	} catch {
 		return { offset, listing: null };
 	}

@@ -26,20 +26,30 @@ func tierDTO(t store.SubscriptionTier) Tier {
 }
 
 type tierInput struct {
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	PriceKopecks *int64 `json:"priceKopecks"`
+	Name         string
+	Description  string
+	PriceKopecks int64
 }
 
 func readTier(r *http.Request) (tierInput, error) {
-	in, err := decode[tierInput](r)
+	wire, err := decode[struct {
+		Name         string  `json:"name"`
+		Description  *string `json:"description"`
+		PriceKopecks *int64  `json:"priceKopecks"`
+	}](r)
 	if err != nil {
-		return in, err
+		return tierInput{}, err
 	}
-	in.Name = strings.TrimSpace(in.Name)
-	in.Description = strings.TrimSpace(in.Description)
-	if utf8.RuneCountInString(in.Name) < 1 || utf8.RuneCountInString(in.Name) > 80 || utf8.RuneCountInString(in.Description) > 5000 || in.PriceKopecks == nil || *in.PriceKopecks < 0 || *in.PriceKopecks > 100000000 {
-		return in, invalid()
+	if wire.Description == nil || wire.PriceKopecks == nil {
+		return tierInput{}, invalid()
+	}
+	in := tierInput{
+		Name:         strings.TrimSpace(wire.Name),
+		Description:  strings.TrimSpace(*wire.Description),
+		PriceKopecks: *wire.PriceKopecks,
+	}
+	if utf8.RuneCountInString(in.Name) < 1 || utf8.RuneCountInString(in.Name) > 80 || utf8.RuneCountInString(in.Description) > 5000 || in.PriceKopecks < 0 || in.PriceKopecks > 100000000 {
+		return tierInput{}, invalid()
 	}
 	return in, nil
 }
@@ -81,7 +91,7 @@ func (s *Server) createTier(w http.ResponseWriter, r *http.Request) error {
 	if active >= 50 {
 		return problem(422, "tier_limit", "Можно создать не более 50 активных уровней.")
 	}
-	row, err := q.CreateTier(r.Context(), store.CreateTierParams{AuthorID: id, Name: in.Name, Description: in.Description, PriceKopecks: *in.PriceKopecks})
+	row, err := q.CreateTier(r.Context(), store.CreateTierParams{AuthorID: id, Name: in.Name, Description: in.Description, PriceKopecks: in.PriceKopecks})
 	if err != nil {
 		return err
 	}
@@ -104,7 +114,7 @@ func (s *Server) updateTier(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback(r.Context()) }()
-	row, err := q.UpdateTier(r.Context(), store.UpdateTierParams{ID: tierID, AuthorID: id, Name: in.Name, Description: in.Description, PriceKopecks: *in.PriceKopecks})
+	row, err := q.UpdateTier(r.Context(), store.UpdateTierParams{ID: tierID, AuthorID: id, Name: in.Name, Description: in.Description, PriceKopecks: in.PriceKopecks})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return missing()
 	}

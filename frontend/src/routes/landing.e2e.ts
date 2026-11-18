@@ -479,6 +479,148 @@ test('discovery searches real API results and opens the public profile', async (
 	await expect(page.getByRole('heading', { name: 'Мастерская' })).toBeVisible();
 });
 
+const authorImage = Buffer.from(
+	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRVEAAAAASUVORK5CYII=',
+	'base64'
+);
+
+async function mockAuthorImages(page: Page) {
+	await page.route('**/api/v1/authors/*/images/*', (route) =>
+		route.fulfill({ contentType: 'image/png', body: authorImage })
+	);
+}
+
+function authorProfile(nickname: string, displayName: string, description: string) {
+	const image = {
+		contentType: 'image/png',
+		sizeBytes: authorImage.length,
+		width: 1,
+		height: 1
+	};
+	return {
+		id: nickname,
+		nickname,
+		displayName,
+		description,
+		avatar: { ...image, url: `/api/v1/authors/${nickname}/images/avatar` },
+		cover: { ...image, url: `/api/v1/authors/${nickname}/images/cover` }
+	};
+}
+
+const firstAuthor = authorProfile('ceramist', 'Керамическая мастерская', 'Посуда ручной работы');
+const secondAuthor = authorProfile('printmaker', 'Печатная мастерская', 'Гравюры и литографии');
+
+async function navigateToSecondAuthor(page: Page) {
+	const documentMarker = await page.evaluate((nickname) => {
+		const marker = crypto.randomUUID();
+		Reflect.set(window, 'authorNavigationMarker', marker);
+		const link = document.createElement('a');
+		link.href = '/authors/' + nickname;
+		link.textContent = 'Открыть страницу второго автора';
+		document.querySelector('main')!.prepend(link);
+		return marker;
+	}, secondAuthor.nickname);
+	await page.getByRole('link', { name: 'Открыть страницу второго автора' }).click();
+	await expect(page).toHaveURL(`/authors/${secondAuthor.nickname}`);
+	expect(await page.evaluate(() => Reflect.get(window, 'authorNavigationMarker'))).toBe(
+		documentMarker
+	);
+}
+
+async function expectAuthorProfile(page: Page, profile: ReturnType<typeof authorProfile>) {
+	await expect(page.getByRole('heading', { name: profile.displayName })).toBeVisible();
+	await expect(page.getByText(`@${profile.nickname}`, { exact: true })).toBeVisible();
+	await expect(page.getByText(profile.description, { exact: true })).toBeVisible();
+	await expect(page.locator('main img[alt=""]')).toHaveAttribute('src', profile.avatar.url);
+	await expect(page.getByRole('img', { name: 'Обложка страницы автора' })).toHaveAttribute(
+		'src',
+		profile.cover.url
+	);
+	await expect(page).toHaveTitle(`${profile.displayName} — etheyl`);
+	await expect(page.locator('main [aria-live="polite"]')).toHaveAttribute('aria-busy', 'false');
+}
+
+test('author nickname navigation updates the public profile and browser history', async ({
+	page
+}) => {
+	await mockAuthorImages(page);
+	for (const profile of [firstAuthor, secondAuthor]) {
+		await page.route(`**/api/v1/authors/${profile.nickname}`, (route) =>
+			route.fulfill({ json: { profile, tiers: [] } })
+		);
+	}
+	await page.goto(`/authors/${firstAuthor.nickname}`);
+	await expectAuthorProfile(page, firstAuthor);
+	await navigateToSecondAuthor(page);
+	await expectAuthorProfile(page, secondAuthor);
+	await page.goBack();
+	await expect(page).toHaveURL(`/authors/${firstAuthor.nickname}`);
+	await expectAuthorProfile(page, firstAuthor);
+});
+
+test('author nickname navigation discards a superseded profile response', async ({ page }) => {
+	const releaseFirst = Promise.withResolvers<void>();
+	const firstHandled = Promise.withResolvers<void>();
+	await mockAuthorImages(page);
+	await page.route(`**/api/v1/authors/${firstAuthor.nickname}`, async (route) => {
+		await releaseFirst.promise;
+		try {
+			await route.fulfill({ json: { profile: firstAuthor, tiers: [] } });
+		} catch (error) {
+			if (route.request().failure()?.errorText !== 'net::ERR_ABORTED') throw error;
+		} finally {
+			firstHandled.resolve();
+		}
+	});
+	await page.route(`**/api/v1/authors/${secondAuthor.nickname}`, (route) =>
+		route.fulfill({ json: { profile: secondAuthor, tiers: [] } })
+	);
+
+	const firstRequest = page.waitForRequest(`**/api/v1/authors/${firstAuthor.nickname}`);
+	try {
+		await page.goto(`/authors/${firstAuthor.nickname}`);
+		await firstRequest;
+		await expect(page.getByText('Загружаем страницу…')).toBeVisible();
+		await navigateToSecondAuthor(page);
+		await expectAuthorProfile(page, secondAuthor);
+	} finally {
+		releaseFirst.resolve();
+	}
+	await firstHandled.promise;
+	await expectAuthorProfile(page, secondAuthor);
+});
+
+test('author nickname navigation retries the current profile after an error', async ({ page }) => {
+	const requestedNicknames: string[] = [];
+	await mockAuthorImages(page);
+	await page.route('**/api/v1/authors/*', (route) => {
+		const nickname = new URL(route.request().url()).pathname.split('/').at(-1)!;
+		requestedNicknames.push(nickname);
+		if (nickname === firstAuthor.nickname) {
+			return route.fulfill({ json: { profile: firstAuthor, tiers: [] } });
+		}
+		if (requestedNicknames.length === 2) {
+			return route.fulfill({ status: 404, json: { error: 'not_found' } });
+		}
+		return route.fulfill({ json: { profile: secondAuthor, tiers: [] } });
+	});
+
+	await page.goto(`/authors/${firstAuthor.nickname}`);
+	await expectAuthorProfile(page, firstAuthor);
+	await navigateToSecondAuthor(page);
+	await expect(page.getByRole('heading', { name: 'Не удалось открыть страницу' })).toBeVisible();
+	await expect(page.getByText('Страница автора не найдена.')).toBeVisible();
+	await expect(page.locator('main img')).toHaveCount(0);
+	await expect(page).toHaveTitle('Страница автора — etheyl');
+	await page.getByRole('button', { name: 'Попробовать ещё раз' }).click();
+	await expectAuthorProfile(page, secondAuthor);
+	expect(requestedNicknames).toEqual([
+		firstAuthor.nickname,
+		secondAuthor.nickname,
+		secondAuthor.nickname
+	]);
+});
+
 test('mobile and zoom keep registration usable; closing invitation focuses the existing form', async ({
 	page
 }) => {
