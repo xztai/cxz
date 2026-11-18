@@ -75,9 +75,9 @@ func (s *Server) ownProfile(w http.ResponseWriter, r *http.Request) error {
 }
 
 type profileInput struct {
-	Nickname    string `json:"nickname"`
-	DisplayName string `json:"displayName"`
-	Description string `json:"description"`
+	Nickname    string  `json:"nickname"`
+	DisplayName string  `json:"displayName"`
+	Description *string `json:"description"`
 }
 
 func (s *Server) saveProfile(w http.ResponseWriter, r *http.Request) error {
@@ -89,10 +89,13 @@ func (s *Server) saveProfile(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	if in.Description == nil {
+		return invalid()
+	}
 	nickname, ok := auth.NormalizeNickname(in.Nickname)
 	in.DisplayName = strings.TrimSpace(in.DisplayName)
-	in.Description = strings.TrimSpace(in.Description)
-	if !ok || utf8.RuneCountInString(in.DisplayName) < 1 || utf8.RuneCountInString(in.DisplayName) > 80 || utf8.RuneCountInString(in.Description) > 5000 {
+	description := strings.TrimSpace(*in.Description)
+	if !ok || utf8.RuneCountInString(in.DisplayName) < 1 || utf8.RuneCountInString(in.DisplayName) > 80 || utf8.RuneCountInString(description) > 5000 {
 		return invalid()
 	}
 	tx, err := s.pool.Begin(r.Context())
@@ -114,7 +117,7 @@ func (s *Server) saveProfile(w http.ResponseWriter, r *http.Request) error {
 		}
 		return fmt.Errorf("update nickname: %w", err)
 	}
-	if _, err := q.SaveCreatorProfile(r.Context(), store.SaveCreatorProfileParams{UserID: u.ID, DisplayName: in.DisplayName, Description: in.Description}); err != nil {
+	if _, err := q.SaveCreatorProfile(r.Context(), store.SaveCreatorProfileParams{UserID: u.ID, DisplayName: in.DisplayName, Description: description}); err != nil {
 		return err
 	}
 	if err := tx.Commit(r.Context()); err != nil {
