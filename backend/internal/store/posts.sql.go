@@ -171,8 +171,20 @@ func (q *Queries) GetPostMedia(ctx context.Context, id int64) (PostMedium, error
 	return i, err
 }
 
+const hasPublishedPost = `-- name: HasPublishedPost :one
+SELECT EXISTS (SELECT 1 FROM posts WHERE author_id=$1 AND published_at IS NOT NULL)
+`
+
+func (q *Queries) HasPublishedPost(ctx context.Context, authorID int64) (bool, error) {
+	row := q.db.QueryRow(ctx, hasPublishedPost, authorID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const listOwnPosts = `-- name: ListOwnPosts :many
-SELECT id, author_id, title, teaser, body_markdown, minimum_tier_id, published_at, created_at, updated_at FROM posts WHERE author_id=$1 ORDER BY id DESC LIMIT 25 OFFSET $2
+SELECT id,title,teaser,minimum_tier_id,published_at FROM posts
+WHERE author_id=$1 ORDER BY id DESC LIMIT 25 OFFSET $2
 `
 
 type ListOwnPostsParams struct {
@@ -180,25 +192,29 @@ type ListOwnPostsParams struct {
 	Offset   int32
 }
 
-func (q *Queries) ListOwnPosts(ctx context.Context, arg ListOwnPostsParams) ([]Post, error) {
+type ListOwnPostsRow struct {
+	ID            int64
+	Title         string
+	Teaser        string
+	MinimumTierID pgtype.Int8
+	PublishedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) ListOwnPosts(ctx context.Context, arg ListOwnPostsParams) ([]ListOwnPostsRow, error) {
 	rows, err := q.db.Query(ctx, listOwnPosts, arg.AuthorID, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Post{}
+	items := []ListOwnPostsRow{}
 	for rows.Next() {
-		var i Post
+		var i ListOwnPostsRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.AuthorID,
 			&i.Title,
 			&i.Teaser,
-			&i.BodyMarkdown,
 			&i.MinimumTierID,
 			&i.PublishedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

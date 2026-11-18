@@ -17,7 +17,11 @@ updated_at=now() WHERE id=$1 AND author_id=$2;
 DELETE FROM posts WHERE id=$1 AND author_id=$2;
 
 -- name: ListOwnPosts :many
-SELECT * FROM posts WHERE author_id=$1 ORDER BY id DESC LIMIT 25 OFFSET $2;
+SELECT id,title,teaser,minimum_tier_id,published_at FROM posts
+WHERE author_id=$1 ORDER BY id DESC LIMIT 25 OFFSET $2;
+
+-- name: HasPublishedPost :one
+SELECT EXISTS (SELECT 1 FROM posts WHERE author_id=$1 AND published_at IS NOT NULL);
 
 -- name: ListPublishedPosts :many
 SELECT id,title,teaser,minimum_tier_id,published_at FROM posts

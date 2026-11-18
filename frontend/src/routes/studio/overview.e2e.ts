@@ -114,7 +114,13 @@ test('Studio guides setup and supports a public post before the first tier', asy
 			await route.fulfill({ status: 201, json: { post: savedPost } });
 			return;
 		}
-		await route.fulfill({ json: { posts: savedPost ? [savedPost] : [], hasMore: false } });
+		await route.fulfill({
+			json: {
+				posts: savedPost ? [savedPost] : [],
+				hasMore: false,
+				hasPublishedPost: savedPost?.publishedAt != null
+			}
+		});
 	});
 	await page.route('**/api/v1/me/posts/7/publish', async (route) => {
 		expectStudioMutation(route.request());
@@ -316,11 +322,21 @@ test('Studio explains tier prices and reloads a deletion that becomes an archive
 	);
 });
 
-test('Studio checks older publications, lists three drafts, and retries analytics on mobile', async ({
+test('Studio detects older publications in one request and retries analytics on mobile', async ({
 	page
 }) => {
 	await page.setViewportSize({ width: 360, height: 800 });
 	await mockAccount(page);
+	const postRequests: { offset: string | null; ownerId: string | undefined }[] = [];
+	page.on('request', (request) => {
+		const url = new URL(request.url());
+		if (request.method() === 'GET' && url.pathname === '/api/v1/me/posts') {
+			postRequests.push({
+				offset: url.searchParams.get('offset'),
+				ownerId: request.headers()['x-expected-user-id']
+			});
+		}
+	});
 	let failAnalytics = true;
 	await page.route('**/api/v1/me/profile', (route) =>
 		route.fulfill({ json: { ownerId: user.id, profile } })
@@ -330,20 +346,16 @@ test('Studio checks older publications, lists three drafts, and retries analytic
 		route.fulfill({
 			json: {
 				posts: Array.from({ length: 24 }, (_, index) => post(String(25 - index))),
-				hasMore: true
+				hasMore: true,
+				hasPublishedPost: true
 			}
 		})
-	);
-	await page.route('**/api/v1/me/posts?offset=24', (route) =>
-		route.fulfill({ json: { posts: [post('1', publishedAt)], hasMore: false } })
 	);
 	await page.route('**/api/v1/me/analytics', (route) =>
 		failAnalytics ? route.fulfill({ status: 503, json: {} }) : route.fulfill({ json: analytics })
 	);
 
-	const olderPage = page.waitForResponse('**/api/v1/me/posts?offset=24');
 	await page.goto('/studio');
-	await olderPage;
 	const posts = page.getByRole('region', { name: 'Последние посты' });
 	const latest = posts.getByRole('link', { name: /Работа/ });
 	await expect(latest).toHaveCount(3);
@@ -356,6 +368,8 @@ test('Studio checks older publications, lists three drafts, and retries analytic
 	const metrics = page.getByRole('region', { name: 'Аналитика' });
 	await expect(metrics.getByText('Не удалось загрузить аналитику.')).toBeVisible();
 	await expect(metrics.locator('dd')).toHaveCount(0);
+	expect(postRequests).toEqual([{ offset: null, ownerId: user.id }]);
+
 	failAnalytics = false;
 	await metrics.getByRole('button', { name: 'Повторить' }).click();
 	await expect(metrics.getByText('Тестовый режим')).toBeVisible();
@@ -368,6 +382,28 @@ test('Studio checks older publications, lists three drafts, and retries analytic
 	await expect(page).toHaveURL('/studio/analytics');
 	await expect(page.getByRole('heading', { name: 'Аналитика', level: 1 })).toBeVisible();
 	await expect(nav).toBeHidden();
+});
+
+test('Studio links to the newest draft when the author has no publications', async ({ page }) => {
+	await mockAccount(page);
+	await page.route('**/api/v1/me/profile', (route) =>
+		route.fulfill({ json: { ownerId: user.id, profile } })
+	);
+	await page.route('**/api/v1/me/tiers', (route) => route.fulfill({ json: { tiers: [tier] } }));
+	await page.route('**/api/v1/me/posts', (route) =>
+		route.fulfill({
+			json: { posts: [post('2'), post('1')], hasMore: false, hasPublishedPost: false }
+		})
+	);
+	await page.route('**/api/v1/me/analytics', (route) => route.fulfill({ json: analytics }));
+
+	await page.goto('/studio');
+	const setup = page.getByRole('region', { name: 'Настройте студию' });
+	await expect(setup).toContainText('2 из 3');
+	await expect(setup.getByRole('link', { name: 'Открыть черновик' })).toHaveAttribute(
+		'href',
+		'/studio/posts/2/edit'
+	);
 });
 
 test('Profile previews draft text and applies each image crop independently', async ({ page }) => {
@@ -779,7 +815,9 @@ test('Studio reuses the initial overview read after verifying its matching accou
 	await page.route('**/api/v1/me/posts', (route) => {
 		firstPageRequests++;
 		expect(route.request().headers()['x-expected-user-id']).toBe(user.id);
-		return route.fulfill({ json: { posts: [post('1', publishedAt)], hasMore: false } });
+		return route.fulfill({
+			json: { posts: [post('1', publishedAt)], hasMore: false, hasPublishedPost: true }
+		});
 	});
 
 	const firstPage = page.waitForResponse('**/api/v1/me/posts');

@@ -437,7 +437,7 @@ paths:
       parameters: [{$ref: '#/components/parameters/PostOffset'}, {$ref: '#/components/parameters/ExpectedUserId'}]
       responses:
         '412': {$ref: '#/components/responses/AccountChanged'}
-        '200': {$ref: '#/components/responses/Posts'}
+        '200': {$ref: '#/components/responses/OwnPosts'}
         default: {$ref: '#/components/responses/Error'}
     post:
       operationId: createPost
@@ -1611,6 +1611,19 @@ components:
             properties:
               posts: {type: array, items: {$ref: '#/components/schemas/PostSummary'}}
               hasMore: {type: boolean}
+    OwnPosts:
+      description: Up to 24 summaries, newest ID first, with publication status for the signed-in author
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [posts, hasMore, hasPublishedPost]
+            properties:
+              posts: {type: array, items: {$ref: '#/components/schemas/PostSummary'}}
+              hasMore: {type: boolean}
+              hasPublishedPost:
+                type: boolean
+                description: Whether the signed-in author currently has any published post across all pages, including tier-gated posts.
     MediaBytes:
       description: Authorized original or thumbnail, no-store
       headers:

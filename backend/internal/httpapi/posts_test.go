@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -182,6 +183,91 @@ func fixtureSubscription(t *testing.T, h *harness, tier string) {
  ON CONFLICT(subscriber_id,author_id) DO UPDATE SET tier_id=EXCLUDED.tier_id,starts_at=now(),expires_at=EXCLUDED.expires_at,revoked_at=NULL`, mustID(t, tier)); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestIntegrationOwnPostsPublicationProgress(t *testing.T) {
+	h := publicationHarness(t)
+	checkPage := func(path string, wantIDs []string, wantMore, wantPublished bool) []PostSummary {
+		t.Helper()
+		body := h.expect("GET", path, "", 200)
+		var page struct {
+			Posts            []PostSummary `json:"posts"`
+			HasMore          *bool         `json:"hasMore"`
+			HasPublishedPost *bool         `json:"hasPublishedPost"`
+		}
+		if err := json.Unmarshal([]byte(body), &page); err != nil {
+			t.Fatal(err)
+		}
+		if page.Posts == nil || page.HasMore == nil || *page.HasMore != wantMore ||
+			page.HasPublishedPost == nil || *page.HasPublishedPost != wantPublished {
+			t.Fatalf("unexpected page at %s: %s", path, body)
+		}
+		ids := make([]string, 0, len(page.Posts))
+		for _, post := range page.Posts {
+			ids = append(ids, post.ID)
+		}
+		if !slices.Equal(ids, wantIDs) {
+			t.Fatalf("IDs at %s = %v, want %v", path, ids, wantIDs)
+		}
+		return page.Posts
+	}
+
+	const firstPage = "/me/posts"
+	const pastEnd = "/me/posts?offset=100"
+	checkPage(firstPage, nil, false, false)
+
+	ownerClient, ownerCSRF := h.client, h.csrf
+	newTestSession(t, h, "other")
+	h.expect("PUT", "/me/profile", `{"nickname":"other","displayName":"Другой автор","description":""}`, 200)
+	other := postResult(t, h.expect("POST", "/me/posts", postBody("null"), 201))
+	h.expect("POST", "/me/posts/"+other.ID+"/publish", "", 200)
+	h.client, h.csrf = ownerClient, ownerCSRF
+
+	tier := testTier(t, h.expect("POST", "/me/tiers", `{"name":"Поддержка","description":"","priceKopecks":100}`, 201))
+	older := postResult(t, h.expect("POST", "/me/posts", postBody(fmt.Sprintf("%q", tier.ID)), 201))
+	draftIDs := make([]string, 24)
+	for i := range draftIDs {
+		var id int64
+		err := h.pool.QueryRow(t.Context(), `
+INSERT INTO posts(author_id,title)
+SELECT id,'Черновик' FROM users WHERE nickname='writer' RETURNING id`).Scan(&id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		draftIDs[i] = strconv.FormatInt(id, 10)
+	}
+	slices.Reverse(draftIDs)
+	checkPage(firstPage, draftIDs, true, false)
+
+	h.expect("POST", "/me/posts/"+older.ID+"/publish", "", 200)
+	for _, draft := range checkPage(firstPage, draftIDs, true, true) {
+		if draft.PublishedAt != nil {
+			t.Fatalf("published post in first page of drafts: %s", draft.ID)
+		}
+	}
+	tail := checkPage("/me/posts?offset=24", []string{older.ID}, false, true)
+	if tail[0].PublishedAt == nil || tail[0].MinimumTierID == nil || *tail[0].MinimumTierID != tier.ID {
+		t.Fatalf("expected a tier-gated publication on the second page: %+v", tail[0])
+	}
+	checkPage(pastEnd, nil, false, true)
+
+	body := h.expect("GET", "/authors/writer/posts", "", 200)
+	var public map[string]any
+	if err := json.Unmarshal([]byte(body), &public); err != nil {
+		t.Fatal(err)
+	}
+	publicPosts, ok := public["posts"].([]any)
+	if len(public) != 2 || public["hasMore"] != false || !ok || len(publicPosts) != 1 {
+		t.Fatalf("unexpected public page: %s", body)
+	}
+	publicPost, ok := publicPosts[0].(map[string]any)
+	if !ok || len(publicPost) != 6 || publicPost["id"] != older.ID || publicPost["minimumTierId"] != tier.ID {
+		t.Fatalf("unexpected public summary: %s", body)
+	}
+
+	h.expect("POST", "/me/posts/"+older.ID+"/unpublish", "", 200)
+	checkPage(firstPage, draftIDs, true, false)
+	checkPage(pastEnd, nil, false, false)
 }
 
 func TestIntegrationPublicationsAccessAndMedia(t *testing.T) {

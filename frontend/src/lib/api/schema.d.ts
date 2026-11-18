@@ -1056,6 +1056,20 @@ export interface components {
 				};
 			};
 		};
+		/** @description Up to 24 summaries, newest ID first, with publication status for the signed-in author */
+		OwnPosts: {
+			headers: {
+				[name: string]: unknown;
+			};
+			content: {
+				'application/json': {
+					posts: components['schemas']['PostSummary'][];
+					hasMore: boolean;
+					/** @description Whether the signed-in author currently has any published post across all pages, including tier-gated posts. */
+					hasPublishedPost: boolean;
+				};
+			};
+		};
 		/** @description Authorized original or thumbnail, no-store */
 		MediaBytes: {
 			headers: {
@@ -1757,7 +1771,7 @@ export interface operations {
 		};
 		requestBody?: never;
 		responses: {
-			200: components['responses']['Posts'];
+			200: components['responses']['OwnPosts'];
 			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
