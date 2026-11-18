@@ -360,7 +360,7 @@ export interface paths {
 			cookie?: never;
 		};
 		get?: never;
-		/** @description Complete list of active IDs, highest first. Positions of used tiers are immutable; archived positions are reserved. */
+		/** @description Send every active tier ID exactly once, highest first. The server assigns the existing active positions in descending order. Used tiers keep their positions, and archived positions are reserved. */
 		put: operations['reorderTiers'];
 		post?: never;
 		delete?: never;
@@ -562,6 +562,7 @@ export interface paths {
 		};
 		get?: never;
 		put?: never;
+		/** @description Confirm the current tier price in kopecks. The server checks it against the stored price before creating a payment or returning an open payment. */
 		post: operations['checkout'];
 		delete?: never;
 		options?: never;
@@ -994,6 +995,12 @@ export interface components {
 		};
 		Error: {
 			error: {
+				/**
+				 * @description Machine-readable error code. Operations document the codes applicable to their responses.
+				 * @example tier_order_locked
+				 * @example price_changed
+				 * @example invalid_price
+				 */
 				code: string;
 				message: string;
 			};
@@ -1103,7 +1110,7 @@ export interface components {
 				};
 			};
 		};
-		/** @description 400 invalid/expired token, 401 credentials, 403 CSRF/unverified/forbidden, 409 email/nickname already registered, 415 content type, 422 validation/unchanged password, 429 rate limit, 500 internal, 503 busy/unavailable */
+		/** @description API error. Examples include invalid or expired tokens (400), credentials (401), CSRF or forbidden requests (403), conflicts such as email_exists, nickname_exists, tier_order_locked or price_changed (409), unsupported content type (415), validation, password_unchanged or invalid_price (422), rate limits (429), internal errors (500), and temporary unavailability (503). */
 		Error: {
 			headers: {
 				[name: string]: unknown;
@@ -1660,6 +1667,20 @@ export interface operations {
 		};
 		responses: {
 			200: components['responses']['Tiers'];
+			/** @description tier_order_locked if a used tier would change position, or profile_required if the creator profile is missing. */
+			409: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Error'] & {
+						error?: {
+							/** @enum {string} */
+							code?: 'tier_order_locked' | 'profile_required';
+						};
+					};
+				};
+			};
 			default: components['responses']['Error'];
 		};
 	};
@@ -1911,6 +1932,34 @@ export interface operations {
 		};
 		responses: {
 			202: components['responses']['Payment'];
+			/** @description price_changed if the tier price differs from the confirmed price, own_subscription for the subscriber's own tier, or subscription_active if the subscription is already paid. */
+			409: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Error'] & {
+						error?: {
+							/** @enum {string} */
+							code?: 'price_changed' | 'own_subscription' | 'subscription_active';
+						};
+					};
+				};
+			};
+			/** @description invalid_price if the confirmed price matches the tier price but is below 100 kopecks, or validation if the request is invalid. */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Error'] & {
+						error?: {
+							/** @enum {string} */
+							code?: 'invalid_price' | 'validation';
+						};
+					};
+				};
+			};
 			default: components['responses']['Error'];
 		};
 	};

@@ -371,7 +371,10 @@ paths:
   /me/tiers/order:
     put:
       operationId: reorderTiers
-      description: Complete list of active IDs, highest first. Positions of used tiers are immutable; archived positions are reserved.
+      description: >
+        Send every active tier ID exactly once, highest first. The server assigns the
+        existing active positions in descending order. Used tiers keep their positions,
+        and archived positions are reserved.
       security: [{session: [], csrf: []}]
       requestBody:
         required: true
@@ -385,6 +388,17 @@ paths:
                 ids: {type: array, maxItems: 50, items: {type: string}}
       responses:
         '200': {$ref: '#/components/responses/Tiers'}
+        '409':
+          description: tier_order_locked if a used tier would change position, or profile_required if the creator profile is missing.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - {$ref: '#/components/schemas/Error'}
+                  - properties:
+                      error:
+                        properties:
+                          code: {type: string, enum: [tier_order_locked, profile_required]}
         default: {$ref: '#/components/responses/Error'}
   /me/posts:
     get:
@@ -530,11 +544,48 @@ paths:
       "post":
         {
           "operationId": "checkout",
+          "description": "Confirm the current tier price in kopecks. The server checks it against the stored price before creating a payment or returning an open payment.",
           "security": [{ "session": [], "csrf": [] }],
           "responses":
             {
               "default": { "$ref": "#/components/responses/Error" },
               "202": { "$ref": "#/components/responses/Payment" },
+              "409":
+                {
+                  "description": "price_changed if the tier price differs from the confirmed price, own_subscription for the subscriber's own tier, or subscription_active if the subscription is already paid.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "allOf":
+                                [
+                                  { "$ref": "#/components/schemas/Error" },
+                                  { "properties": { "error": { "properties": { "code": { "type": "string", "enum": ["price_changed", "own_subscription", "subscription_active"] } } } } },
+                                ],
+                            },
+                        },
+                    },
+                },
+              "422":
+                {
+                  "description": "invalid_price if the confirmed price matches the tier price but is below 100 kopecks, or validation if the request is invalid.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "allOf":
+                                [
+                                  { "$ref": "#/components/schemas/Error" },
+                                  { "properties": { "error": { "properties": { "code": { "type": "string", "enum": ["invalid_price", "validation"] } } } } },
+                                ],
+                            },
+                        },
+                    },
+                },
             },
           "requestBody":
             {
@@ -1446,7 +1497,10 @@ components:
           type: object
           required: [code, message]
           properties:
-            code: { type: string }
+            code:
+              type: string
+              description: Machine-readable error code. Operations document the codes applicable to their responses.
+              examples: [tier_order_locked, price_changed, invalid_price]
             message: { type: string }
   responses:
     Payment:
@@ -1539,7 +1593,12 @@ components:
             properties:
               status: { type: string, const: ok }
     Error:
-      description: '400 invalid/expired token, 401 credentials, 403 CSRF/unverified/forbidden, 409 email/nickname already registered, 415 content type, 422 validation/unchanged password, 429 rate limit, 500 internal, 503 busy/unavailable'
+      description: >
+        API error. Examples include invalid or expired tokens (400), credentials (401),
+        CSRF or forbidden requests (403), conflicts such as email_exists, nickname_exists,
+        tier_order_locked or price_changed (409), unsupported content type (415),
+        validation, password_unchanged or invalid_price (422), rate limits (429),
+        internal errors (500), and temporary unavailability (503).
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }

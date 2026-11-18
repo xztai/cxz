@@ -17,6 +17,8 @@ type Result<K extends keyof operations, S extends number> = operations[K] extend
 	? T
 	: never;
 
+export type TierOrderConflictCode = Result<'reorderTiers', 409>['error']['code'];
+
 export class ApiError extends Error {
 	constructor(
 		public code: string,
@@ -116,6 +118,19 @@ export const api = {
 	ownTiers: (fetcher?: typeof fetch) => request<Result<'ownTiers', 200>>('/me/tiers', { fetcher }),
 	createTier: (input: TierInput) =>
 		request<Result<'createTier', 201>>('/me/tiers', { body: input }),
+	updateTier: (id: string, input: TierInput) =>
+		request<Result<'updateTier', 200>>(`/me/tiers/${encodeURIComponent(id)}`, {
+			body: input,
+			method: 'PUT'
+		}),
+	archiveTier: (id: string) =>
+		request<Result<'archiveTier', 200>>(`/me/tiers/${encodeURIComponent(id)}/archive`, {
+			method: 'POST'
+		}),
+	deleteTier: (id: string) =>
+		request<Result<'deleteTier', 200>>(`/me/tiers/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+	reorderTiers: (body: operations['reorderTiers']['requestBody']['content']['application/json']) =>
+		request<Result<'reorderTiers', 200>>('/me/tiers/order', { body, method: 'PUT' }),
 	ownPosts: (offset = 0, fetcher?: typeof fetch) =>
 		request<Result<'ownPosts', 200>>(offset ? `/me/posts?offset=${offset}` : '/me/posts', {
 			fetcher
@@ -162,6 +177,8 @@ export function errorMessage(error: unknown): string {
 		password_unchanged: 'Придумайте пароль, который отличается от текущего.',
 		validation: 'Проверьте заполненные поля и попробуйте снова.',
 		invalid_nickname: 'Никнейм: от 3 до 30 латинских букв, цифр, знаков _ или -.',
+		tier_limit: 'Можно создать не более 50 активных уровней.',
+		tier_order_locked: 'Позицию используемого уровня менять нельзя.',
 		csrf: 'Не удалось проверить запрос. Обновите страницу и повторите попытку.',
 		network: 'Нет связи с сервером. Проверьте подключение и попробуйте ещё раз.'
 	};

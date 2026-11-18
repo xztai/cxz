@@ -16,6 +16,8 @@
 		analytics: 'M4 3v17h17M9 16v-4m5 4V8m5 8V4',
 		menu: 'M4 6h16M4 12h16M4 18h16',
 		chevron: 'm6 9 6 6 6-6',
+		grip: 'M9 5.5v1m6-1v1m-6 5v1m6-1v1m-6 5v1m6-1v1',
+		warning: 'M12 3 2.5 20h19L12 3Zm0 6v4m0 3v.5',
 		external: 'M13 5h6v6m0-6-9 9m6-1v6H5V8h6',
 		wallet: 'M20 8H5a2 2 0 0 1 0-4h12v4M3 6v12a2 2 0 0 0 2 2h15V8m0 4h-5a2 2 0 0 0 0 4h5',
 		users:

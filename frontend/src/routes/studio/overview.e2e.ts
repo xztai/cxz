@@ -158,6 +158,7 @@ test('Studio guides setup and supports a public post before the first tier', asy
 	await expect(recentPost.locator('time')).toHaveAttribute('datetime', publishedAt);
 
 	await setup.getByRole('link', { name: 'Добавить уровень' }).click();
+	await page.getByRole('button', { name: 'Новый уровень' }).click();
 	await page.getByLabel('Название', { exact: true }).fill('Поддержка');
 	await page.getByLabel('Стоимость в месяц, ₽').fill('150,50');
 	await page.getByRole('button', { name: 'Создать уровень' }).click();
@@ -168,6 +169,140 @@ test('Studio guides setup and supports a public post before the first tier', asy
 		.click();
 	await expect(setup).toHaveCount(0);
 	await expect(main.getByRole('link', { name: 'Новый пост' })).toBeVisible();
+});
+
+test('Studio confines tier moves to their section and reloads the order after a conflict', async ({
+	page
+}) => {
+	await mockAccount(page);
+	await page.route('**/api/v1/me/profile', (route) => route.fulfill({ json: { profile } }));
+	let tiers: Tier[] = [
+		{ ...tier, id: '1', name: 'Первая', position: 6 },
+		{ ...tier, id: '2', name: 'Вторая', position: 5 },
+		{ ...tier, id: '3', name: 'Используемая', position: 4, used: true },
+		{ ...tier, id: '4', name: 'Четвёртая', position: 3 },
+		{ ...tier, id: '5', name: 'Архивная', position: 2, used: true, archived: true },
+		{ ...tier, id: '6', name: 'Последняя', position: 1 }
+	];
+	let reorderRequests = 0;
+	await page.route('**/api/v1/me/tiers', (route) => route.fulfill({ json: { tiers } }));
+	await page.route('**/api/v1/me/tiers/order', async (route) => {
+		expectCsrf(route.request());
+		reorderRequests++;
+		if (reorderRequests === 1) {
+			expect(route.request().postDataJSON()).toEqual({ ids: ['2', '1', '3', '4', '6'] });
+			tiers = [{ ...tier, id: '7', name: 'Добавленная', position: 7 }, ...tiers];
+			await route.fulfill({ status: 409, json: { error: { code: 'tier_order_locked' } } });
+			return;
+		}
+		expect(route.request().postDataJSON()).toEqual({ ids: ['7', '2', '1', '3', '4', '6'] });
+		const positions = { '1': 5, '2': 6 } as Record<string, number | undefined>;
+		tiers = tiers.map((current) => ({
+			...current,
+			position: positions[current.id] ?? current.position
+		}));
+		await route.fulfill({ json: { tiers } });
+	});
+
+	await page.goto('/studio/tiers');
+	const active = page.getByRole('list', { name: 'Активные уровни' });
+	const row = (name: string) =>
+		active.getByRole('listitem').filter({
+			has: page.getByRole('heading', { name, exact: true })
+		});
+	const saveOrder = page.getByRole('button', { name: 'Сохранить порядок' });
+	await expect(saveOrder).toBeDisabled();
+	await expect(row('Вторая').getByRole('button', { name: 'Ниже' })).toBeDisabled();
+	await expect(row('Четвёртая').getByRole('button', { name: 'Ниже' })).toBeDisabled();
+	await expect(row('Последняя').getByRole('button', { name: 'Выше' })).toBeDisabled();
+	await row('Первая').getByRole('button', { name: 'Ниже' }).press('Enter');
+	await expect(active.getByRole('heading').first()).toHaveText('Вторая');
+	await expect(saveOrder).toBeEnabled();
+	await row('Первая').getByRole('button', { name: 'Выше' }).press('Enter');
+	await expect(saveOrder).toBeDisabled();
+	await row('Первая').locator('[draggable=true]').dragTo(row('Используемая'));
+	await expect(saveOrder).toBeDisabled();
+	await row('Первая').locator('[draggable=true]').dragTo(row('Вторая'));
+	await expect(active.getByRole('heading').first()).toHaveText('Вторая');
+	expect(reorderRequests).toBe(0);
+	await saveOrder.click();
+	await expect(page.getByText('Порядок изменился, обновляем список')).toBeVisible();
+	await expect(active.getByRole('heading')).toHaveText([
+		'Добавленная',
+		'Первая',
+		'Вторая',
+		'Используемая',
+		'Четвёртая',
+		'Последняя'
+	]);
+	await expect(saveOrder).toBeDisabled();
+	await row('Вторая').getByRole('button', { name: 'Выше' }).click();
+	await saveOrder.click();
+	await expect(page.getByText('Порядок уровней сохранён.')).toBeVisible();
+	await expect(active.getByRole('heading').nth(1)).toHaveText('Вторая');
+	await expect(saveOrder).toBeDisabled();
+	await page.getByText('Архив', { exact: true }).first().click();
+	const archive = page.getByRole('list', { name: 'Архивные уровни' });
+	await expect(archive.getByText('Используется')).toBeVisible();
+	await expect(archive).toContainText('150,5');
+});
+
+test('Studio explains tier prices and reloads a deletion that becomes an archive', async ({
+	page
+}) => {
+	await mockAccount(page);
+	await page.route('**/api/v1/me/profile', (route) => route.fulfill({ json: { profile } }));
+	let tiers = [
+		{ ...tier, name: 'Эскизы', position: 3, priceKopecks: 99 },
+		{ ...tier, id: '2', name: 'Мастерская', position: 2, priceKopecks: 100, used: true },
+		{ ...tier, id: '3', name: 'Чертежи', position: 1 }
+	];
+	await page.route('**/api/v1/me/tiers', (route) => route.fulfill({ json: { tiers } }));
+	await page.route('**/api/v1/me/tiers/1', async (route) => {
+		expectCsrf(route.request());
+		expect(route.request().method()).toBe('DELETE');
+		tiers = tiers.map((current) =>
+			current.id === '1' ? { ...current, used: true, archived: true } : current
+		);
+		await route.fulfill({ json: { message: 'Уровень убран с публичной страницы.' } });
+	});
+	await page.route('**/api/v1/me/tiers/2/archive', async (route) => {
+		expectCsrf(route.request());
+		expect(route.request().method()).toBe('POST');
+		tiers = tiers.map((current) => (current.id === '2' ? { ...current, archived: true } : current));
+		await route.fulfill({ json: { message: 'Уровень убран с публичной страницы.' } });
+	});
+
+	await page.goto('/studio/tiers');
+	const active = page.getByRole('list', { name: 'Активные уровни' });
+	const sketches = active.getByRole('listitem').filter({ hasText: 'Эскизы' });
+	const workshop = active.getByRole('listitem').filter({ hasText: 'Мастерская' });
+	const modal = page.getByRole('dialog');
+	const paymentWarning = 'Этот уровень нельзя оформить как подписку, минимальный платёж 1 ₽';
+	await expect(sketches).toContainText('Дороже по порядку, но дешевле по цене');
+	await expect(sketches).toContainText(paymentWarning);
+	await expect(workshop).not.toContainText(paymentWarning);
+	await workshop.getByRole('button', { name: 'Изменить' }).click();
+	await expect(modal.getByLabel('Стоимость в месяц, ₽')).toHaveValue('1');
+	await expect(modal).toContainText(
+		'Новая цена применится к новым подписчикам, действующие продлеваются по прежней'
+	);
+	await modal.getByRole('button', { name: 'Отмена' }).click();
+	await expect(workshop.getByRole('button', { name: 'Изменить' })).toBeFocused();
+
+	await sketches.getByRole('button', { name: 'Удалить' }).click();
+	await expect(modal).toContainText('«Эскизы»');
+	await modal.getByRole('button', { name: 'Удалить безвозвратно' }).click();
+	await expect(sketches).toHaveCount(0);
+	await expect(page.getByText('Уровень перемещён в архив.')).toBeVisible();
+	await workshop.getByRole('button', { name: 'Архивировать' }).click();
+	await expect(modal).toContainText('Доступ у действующих подписчиков сохранится.');
+	await modal.getByRole('button', { name: 'Архивировать' }).click();
+	await expect(workshop).toHaveCount(0);
+	await page.getByText('Архив', { exact: true }).first().click();
+	await expect(page.getByRole('list', { name: 'Архивные уровни' }).getByRole('heading')).toHaveText(
+		['Эскизы', 'Мастерская']
+	);
 });
 
 test('Studio checks older publications, lists three drafts, and retries analytics on mobile', async ({
