@@ -58,26 +58,29 @@ func (s *Server) uploadImage(w http.ResponseWriter, r *http.Request) error {
 		s.cleanupImage(key)
 		return err
 	}
-	committed := false
-	defer func() {
-		if !committed {
-			s.cleanupImage(key)
-		}
-	}()
-	if err := q.SaveProfileImage(r.Context(), store.SaveProfileImageParams{UserID: id, Kind: kind, ObjectKey: key, ContentType: img.ContentType, SizeBytes: int64(len(img.Data)), Width: int32(img.Width), Height: int32(img.Height), Sha256: img.SHA256}); err != nil {
+	if err := s.saveUploadedProfileImage(r.Context(), tx, store.SaveProfileImageParams{UserID: id, Kind: kind, ObjectKey: key, ContentType: img.ContentType, SizeBytes: int64(len(img.Data)), Width: int32(img.Width), Height: int32(img.Height), Sha256: img.SHA256}, old); err != nil {
 		return err
-	}
-	if err := tx.Commit(r.Context()); err != nil {
-		return err
-	}
-	committed = true
-	for _, previous := range old {
-		if previous.Kind == kind {
-			s.cleanupImage(previous.ObjectKey)
-		}
 	}
 	return s.ownProfile(w, r)
 }
+
+func (s *Server) saveUploadedProfileImage(ctx context.Context, tx pgx.Tx, image store.SaveProfileImageParams, old []store.ProfileImage) error {
+	if err := store.New(tx).SaveProfileImage(ctx, image); err != nil {
+		s.cleanupImage(image.ObjectKey)
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		// The commit may have succeeded. The worker checks references before deleting either object.
+		return err
+	}
+	for _, previous := range old {
+		if previous.Kind == image.Kind {
+			s.cleanupImage(previous.ObjectKey)
+		}
+	}
+	return nil
+}
+
 func (s *Server) removeImage(w http.ResponseWriter, r *http.Request) error {
 	kind := r.PathValue("kind")
 	if !validKind(kind) {
