@@ -28,7 +28,12 @@ jobs:
       - run: mkdir -p security-results
       - name: Go vulnerability analysis
         working-directory: backend
-        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -json ./... > ../security-results/govulncheck.json
+        shell: bash
+        run: |
+          GOBIN="$RUNNER_TEMP" go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          "$RUNNER_TEMP/govulncheck" -scan=symbol -json ./... > ../security-results/govulncheck.json
+          test -s ../security-results/govulncheck.json
+          "$RUNNER_TEMP/govulncheck" -mode=convert -format=text < ../security-results/govulncheck.json
       - name: npm advisory audit
         if: '!cancelled()'
         run: pnpm --dir frontend audit --prod --audit-level high --json > security-results/npm-audit.json
