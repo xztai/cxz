@@ -4,13 +4,22 @@ import type { LayoutLoad } from './$types';
 export const ssr = false;
 
 type Access =
-	{ state: 'ready'; profile: Profile | null } | { state: 'unauthorized' } | { state: 'error' };
+	| { state: 'ready'; ownerId: string; profile: Profile | null }
+	| { state: 'unauthorized' }
+	| { state: 'error' };
 
 export const load: LayoutLoad = async ({ depends, fetch }): Promise<{ access: Access }> => {
 	depends('studio:profile');
 	try {
-		const { profile } = await api.ownProfile(fetch);
-		return { access: { state: 'ready', profile } };
+		const { ownerId, profile } = await api.ownProfile(fetch);
+		if (
+			typeof ownerId !== 'string' ||
+			!/^[1-9][0-9]*$/.test(ownerId) ||
+			(profile && profile.id !== ownerId)
+		) {
+			return { access: { state: 'error' } };
+		}
+		return { access: { state: 'ready', ownerId, profile } };
 	} catch (error) {
 		return {
 			access: {

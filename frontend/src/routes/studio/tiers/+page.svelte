@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { invalidate } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { onDestroy, tick } from 'svelte';
+	import { onDestroy, tick, untrack } from 'svelte';
 	import {
 		api,
 		ApiError,
@@ -11,6 +11,7 @@
 		type TierOrderConflictCode
 	} from '#lib/api/client.js';
 	import Icon from '#lib/components/Icon.svelte';
+	import { studioEditorIsActive } from '#lib/session.svelte.js';
 	import { formatRubles } from '#lib/studio/format.js';
 	import TierDialog, { type TierDialogAction } from './TierDialog.svelte';
 	import type { PageProps } from './$types';
@@ -26,6 +27,8 @@
 	];
 
 	let { data }: PageProps = $props();
+	const ownerId = untrack(() => (data.access.state === 'ready' ? data.access.ownerId : ''));
+	const isActive = studioEditorIsActive(ownerId);
 	let tiers = $derived(data.tiers);
 	const ordered = $derived((tiers ?? []).toSorted((a, b) => b.position - a.position));
 	const savedActive = $derived(ordered.filter((tier) => !tier.archived));
@@ -90,7 +93,7 @@
 		} finally {
 			activity = undefined;
 		}
-		if (tiers) heading.focus();
+		if (tiers && isActive()) heading.focus();
 	}
 
 	function openDialog(action: TierDialogAction, trigger: HTMLButtonElement) {
@@ -106,12 +109,13 @@
 		dialog = undefined;
 		dialogTrigger = undefined;
 		await tick();
-		restoreFocus(trigger);
+		if (isActive()) restoreFocus(trigger);
 	}
 
 	async function refreshLists() {
 		const previousDraft = orderChanged ? draft : undefined;
 		await Promise.all([invalidate('studio:tiers'), invalidate('studio:overview')]);
+		if (!isActive()) return '';
 		if (previousDraft && previousDraft.layout !== orderLayout) {
 			draft = undefined;
 			return ' Несохранённый порядок сброшен, потому что список уровней изменился.';
@@ -120,23 +124,34 @@
 	}
 
 	async function saveTier(input: TierInput, tier?: Tier) {
+		if (!isActive()) return;
 		try {
-			if (tier) await api.updateTier(tier.id, input);
-			else await api.createTier(input);
+			if (tier) await api.updateTier(ownerId, tier.id, input);
+			else await api.createTier(ownerId, input);
 		} catch (error) {
-			if (error instanceof ApiError && (error.code === 'tier_limit' || error.status === 404)) {
-				status = (await refreshLists()).trimStart();
+			if (
+				isActive() &&
+				error instanceof ApiError &&
+				(error.code === 'tier_limit' || error.status === 404)
+			) {
+				const orderNotice = await refreshLists();
+				if (isActive()) status = orderNotice.trimStart();
 			}
 			throw error;
 		}
+		if (!isActive()) return;
 		const orderNotice = await refreshLists();
+		if (!isActive()) return;
 		status = (tier ? 'Изменения сохранены.' : 'Уровень создан.') + orderNotice;
 	}
 
 	async function retireTier(tier: Tier, action: 'delete' | 'archive') {
-		if (action === 'archive') await api.archiveTier(tier.id);
-		else await api.deleteTier(tier.id);
+		if (!isActive()) return;
+		if (action === 'archive') await api.archiveTier(ownerId, tier.id);
+		else await api.deleteTier(ownerId, tier.id);
+		if (!isActive()) return;
 		const orderNotice = await refreshLists();
+		if (!isActive()) return;
 		const movedToArchive =
 			action === 'archive' || tiers?.some((current) => current.id === tier.id && current.archived);
 		status =
@@ -157,24 +172,27 @@
 		status = orderChanged ? orderDraftMessage : '';
 		problem = '';
 		await tick();
-		if (hadFocus && document?.activeElement === document?.body) restoreFocus(trigger);
+		if (isActive() && hadFocus && document?.activeElement === document?.body) restoreFocus(trigger);
 	}
 
 	async function saveOrder() {
-		if (!orderChanged || !draft || activity || dialog) return;
+		if (!orderChanged || !draft || activity || dialog || !isActive()) return;
 		clearTimeout(toastTimer);
 		activity = 'reorder';
 		problem = '';
 		status = '';
 		try {
-			const result = await api.reorderTiers({ ids: draft.ids });
+			const result = await api.reorderTiers(ownerId, { ids: draft.ids });
+			if (!isActive()) return;
 			tiers = result.tiers;
 			draft = undefined;
 			status = 'Порядок уровней сохранён.';
 		} catch (error) {
+			if (!isActive()) return;
 			if (error instanceof ApiError && error.status === 409 && error.code === lockedOrderCode) {
 				status = orderConflictMessage;
 				await invalidate('studio:tiers');
+				if (!isActive()) return;
 				draft = undefined;
 				toastTimer = setTimeout(() => {
 					if (status === orderConflictMessage) status = '';
@@ -182,6 +200,7 @@
 			} else if (error instanceof ApiError && error.code === 'validation') {
 				problem = 'Список уровней изменился. Проверьте его и повторите попытку.';
 				await invalidate('studio:tiers');
+				if (!isActive()) return;
 				draft = undefined;
 			} else {
 				problem = `Не удалось изменить порядок. ${errorMessage(error)}`;

@@ -222,16 +222,20 @@ paths:
   /me/profile:
     get:
       operationId: ownProfile
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200':
-          description: Own profile; null until first save
+          description: Session owner and own profile, which is null until first save
           content:
             application/json:
               schema:
                 type: object
-                required: [profile]
+                required: [ownerId, profile]
                 properties:
+                  ownerId: {type: string, pattern: '^[1-9][0-9]*$'}
                   profile:
                     oneOf:
                       - {$ref: '#/components/schemas/Profile'}
@@ -240,6 +244,8 @@ paths:
     put:
       operationId: saveProfile
       description: Creates public profile and atomically updates the account nickname. Owner comes from the session.
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody:
         required: true
@@ -247,6 +253,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/ProfileInput'}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Profile'}
         default: {$ref: '#/components/responses/Error'}
   /me/profile/images/{kind}:
@@ -255,6 +262,8 @@ paths:
     put:
       operationId: uploadProfileImage
       description: Raw image bytes, at most 5 MiB and 16 million pixels, each side at most 8192. Actual type must match Content-Type. Re-encoded before storage.
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody:
         required: true
@@ -263,12 +272,16 @@ paths:
           image/jpeg: {schema: {type: string, format: binary}}
           image/webp: {schema: {type: string, format: binary}}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Profile'}
         default: {$ref: '#/components/responses/Error'}
     delete:
       operationId: removeProfileImage
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Profile'}
         default: {$ref: '#/components/responses/Error'}
   /authors:
@@ -322,13 +335,18 @@ paths:
   /me/tiers:
     get:
       operationId: ownTiers
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Tiers'}
         default: {$ref: '#/components/responses/Error'}
     post:
       operationId: createTier
       description: New tier is always placed above all existing tiers, including archived tiers. Maximum 50 active tiers.
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody:
         required: true
@@ -336,6 +354,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/TierInput'}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '201': {$ref: '#/components/responses/Tier'}
         default: {$ref: '#/components/responses/Error'}
   /me/tiers/{id}:
@@ -343,6 +362,8 @@ paths:
       - {name: id, in: path, required: true, schema: {type: string}}
     put:
       operationId: updateTier
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody:
         required: true
@@ -350,22 +371,28 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/TierInput'}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Tier'}
         default: {$ref: '#/components/responses/Error'}
     delete:
       operationId: deleteTier
       description: Unused tiers are deleted; used tiers are archived and retain their position and access hierarchy.
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Message'}
         default: {$ref: '#/components/responses/Error'}
   /me/tiers/{id}/archive:
     post:
       operationId: archiveTier
       parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
         - {name: id, in: path, required: true, schema: {type: string}}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Message'}
         default: {$ref: '#/components/responses/Error'}
   /me/tiers/order:
@@ -375,6 +402,8 @@ paths:
         Send every active tier ID exactly once, highest first. The server assigns the
         existing active positions in descending order. Used tiers keep their positions,
         and archived positions are reserved.
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody:
         required: true
@@ -387,6 +416,7 @@ paths:
               properties:
                 ids: {type: array, maxItems: 50, items: {type: string}}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Tiers'}
         '409':
           description: tier_order_locked if a used tier would change position, or profile_required if the creator profile is missing.
@@ -404,52 +434,71 @@ paths:
     get:
       operationId: ownPosts
       security: [{session: []}]
-      parameters: [{$ref: '#/components/parameters/PostOffset'}]
+      parameters: [{$ref: '#/components/parameters/PostOffset'}, {$ref: '#/components/parameters/ExpectedUserId'}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Posts'}
         default: {$ref: '#/components/responses/Error'}
     post:
       operationId: createPost
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody: {$ref: '#/components/requestBodies/Post'}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '201': {$ref: '#/components/responses/Post'}
         default: {$ref: '#/components/responses/Error'}
   /me/posts/{id}:
     parameters: [{$ref: '#/components/parameters/PostID'}]
     get:
       operationId: ownPost
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Post'}
         default: {$ref: '#/components/responses/Error'}
     put:
       operationId: updatePost
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody: {$ref: '#/components/requestBodies/Post'}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Post'}
         default: {$ref: '#/components/responses/Error'}
     delete:
       operationId: deletePost
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Message'}
         default: {$ref: '#/components/responses/Error'}
   /me/posts/{id}/publish:
     parameters: [{$ref: '#/components/parameters/PostID'}]
     post:
       operationId: publishPost
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Post'}
         default: {$ref: '#/components/responses/Error'}
   /me/posts/{id}/unpublish:
     parameters: [{$ref: '#/components/parameters/PostID'}]
     post:
       operationId: unpublishPost
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Post'}
         default: {$ref: '#/components/responses/Error'}
   /me/posts/{id}/media:
@@ -464,6 +513,7 @@ paths:
         Failed uploads expire after one hour. No public S3 URLs are issued.
       security: [{session: [], csrf: []}]
       parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
         - {in: query, name: kind, required: true, schema: {type: string, enum: [image, audio, video, attachment]}}
         - {in: query, name: filename, required: true, schema: {type: string, minLength: 1, maxLength: 200}}
       requestBody:
@@ -472,6 +522,7 @@ paths:
           application/octet-stream:
             schema: {type: string, format: binary}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '201':
           description: Ready file attached to the post
           content:
@@ -487,8 +538,11 @@ paths:
     parameters: [{$ref: '#/components/parameters/PostID'}, {$ref: '#/components/parameters/MediaID'}]
     delete:
       operationId: detachPostMedia
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Message'}
         default: {$ref: '#/components/responses/Error'}
   /authors/{nickname}/posts:
@@ -887,6 +941,7 @@ paths:
         -
           "session": []
       "responses":
+        '412': {$ref: '#/components/responses/AccountChanged'}
         "200":
           "description": "Server-authorized response, private no-store"
           "content":
@@ -897,6 +952,7 @@ paths:
           "$ref": "#/components/responses/Error"
       "description": "Owner only. Inclusive UTC dates, 1–366 days. Confirmed succeeded payments by completed_at, no provider IDs or PII. Active subscriptions are a current snapshot including canceled renewals with paid access."
       "parameters":
+        - {$ref: '#/components/parameters/ExpectedUserId'}
         -
           "name": "from"
           "in": "query"
@@ -1086,6 +1142,11 @@ components:
     session: { type: apiKey, in: cookie, name: etheyl_session }
     csrf: { type: apiKey, in: header, name: X-CSRF-Token }
   parameters:
+    ExpectedUserId:
+      in: header
+      name: X-Expected-User-ID
+      description: Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition.
+      schema: {type: string, pattern: '^[1-9][0-9]*$'}
     PostID: {in: path, name: id, required: true, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
     MediaID: {in: path, name: mediaID, required: true, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
     PostOffset: {in: query, name: offset, schema: {type: integer, minimum: 0, maximum: 100000, default: 0}}
@@ -1500,9 +1561,20 @@ components:
             code:
               type: string
               description: Machine-readable error code. Operations document the codes applicable to their responses.
-              examples: [tier_order_locked, price_changed, invalid_price]
+              examples: [account_changed, tier_order_locked, price_changed, invalid_price]
             message: { type: string }
   responses:
+    AccountChanged:
+      description: The expected Studio account did not match the authenticated session.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - {$ref: '#/components/schemas/Error'}
+              - properties:
+                  error:
+                    properties:
+                      code: {type: string, const: account_changed}
     Payment:
       {
         "description": "Test shop only; authoritative server verification",
@@ -1552,13 +1624,14 @@ components:
         '*/*':
           schema: {type: string, format: binary}
     Profile:
-      description: Saved public profile
+      description: Session owner and saved profile
       content:
         application/json:
           schema:
             type: object
-            required: [profile]
+            required: [ownerId, profile]
             properties:
+              ownerId: {type: string, pattern: '^[1-9][0-9]*$'}
               profile: {$ref: '#/components/schemas/Profile'}
     Tier:
       description: Saved tier

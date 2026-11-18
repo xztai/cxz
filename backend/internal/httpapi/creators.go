@@ -31,13 +31,27 @@ type ImageMetadata struct {
 	Height      int32  `json:"height"`
 }
 
+const expectedUserHeader = "X-Expected-User-ID"
+
 func missing() error { return problem(404, "not_found", "Страница не найдена.") }
 func (s *Server) requireUser(r *http.Request) (store.User, error) {
 	u, err := s.currentUser(r)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return u, problem(401, "unauthorized", "Войдите в аккаунт.")
 	}
-	return u, err
+	if err != nil {
+		return u, err
+	}
+	if expected := r.Header.Values(expectedUserHeader); len(expected) > 0 {
+		section, _, _ := strings.Cut(strings.TrimPrefix(r.URL.Path, "/api/v1/me/"), "/")
+		switch section {
+		case "profile", "tiers", "posts", "analytics":
+			if len(expected) != 1 || expected[0] != strconv.FormatInt(u.ID, 10) {
+				return store.User{}, problem(http.StatusPreconditionFailed, "account_changed", "Аккаунт изменился. Откройте студию заново.")
+			}
+		}
+	}
+	return u, nil
 }
 func (s *Server) profile(ctx context.Context, id int64) (Profile, error) {
 	p, err := s.q.CreatorProfile(ctx, id)
@@ -64,14 +78,15 @@ func (s *Server) ownProfile(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	ownerID := strconv.FormatInt(u.ID, 10)
 	p, err := s.profile(r.Context(), u.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return respond(w, 200, map[string]any{"profile": nil})
+		return respond(w, 200, map[string]any{"ownerId": ownerID, "profile": nil})
 	}
 	if err != nil {
 		return err
 	}
-	return respond(w, 200, map[string]any{"profile": p})
+	return respond(w, 200, map[string]any{"ownerId": ownerID, "profile": p})
 }
 
 type profileInput struct {

@@ -2,6 +2,7 @@ import { api } from '#lib/api/client.js';
 import type { PageLoad } from './$types';
 
 async function hasPublishedPost(
+	ownerId: string,
 	firstPage: Awaited<ReturnType<typeof api.ownPosts>>,
 	fetcher: typeof fetch
 ) {
@@ -12,7 +13,7 @@ async function hasPublishedPost(
 		offset += page.posts.length;
 		// The API caps the maximum offset at 100,000.
 		if (offset > 100_000) throw new Error('Post offset limit reached');
-		page = await api.ownPosts(offset, fetcher);
+		page = await api.ownPosts(ownerId, offset, fetcher);
 	}
 	return true;
 }
@@ -24,12 +25,12 @@ export const load: PageLoad = async ({ parent, depends, fetch }) => {
 		return { latestPosts: null, progress: null, analytics: null };
 	}
 
-	const posts = api.ownPosts(0, fetch);
+	const posts = api.ownPosts(access.ownerId, 0, fetch);
 	const latestPosts = posts.then(({ posts }) => posts.slice(0, 3)).catch(() => null);
 	const progress = Promise.all([
-		api.ownTiers(fetch),
+		api.ownTiers(access.ownerId, fetch),
 		posts,
-		posts.then((firstPage) => hasPublishedPost(firstPage, fetch))
+		posts.then((firstPage) => hasPublishedPost(access.ownerId, firstPage, fetch))
 	])
 		.then(([{ tiers }, { posts }, published]) => ({
 			activeTier: tiers.some((tier) => !tier.archived),
@@ -37,7 +38,7 @@ export const load: PageLoad = async ({ parent, depends, fetch }) => {
 			draftId: published ? undefined : posts[0]?.id
 		}))
 		.catch(() => null);
-	const analytics = api.analytics(fetch).catch(() => null);
+	const analytics = api.analytics(access.ownerId, fetch).catch(() => null);
 
 	return { latestPosts, progress, analytics };
 };

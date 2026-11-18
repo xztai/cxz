@@ -997,6 +997,7 @@ export interface components {
 			error: {
 				/**
 				 * @description Machine-readable error code. Operations document the codes applicable to their responses.
+				 * @example account_changed
 				 * @example tier_order_locked
 				 * @example price_changed
 				 * @example invalid_price
@@ -1007,6 +1008,20 @@ export interface components {
 		};
 	};
 	responses: {
+		/** @description The expected Studio account did not match the authenticated session. */
+		AccountChanged: {
+			headers: {
+				[name: string]: unknown;
+			};
+			content: {
+				'application/json': components['schemas']['Error'] & {
+					error?: {
+						/** @constant */
+						code?: 'account_changed';
+					};
+				};
+			};
+		};
 		/** @description Test shop only; authoritative server verification */
 		Payment: {
 			headers: {
@@ -1056,13 +1071,14 @@ export interface components {
 				'*/*': string;
 			};
 		};
-		/** @description Saved public profile */
+		/** @description Session owner and saved profile */
 		Profile: {
 			headers: {
 				[name: string]: unknown;
 			};
 			content: {
 				'application/json': {
+					ownerId: string;
 					profile: components['schemas']['Profile'];
 				};
 			};
@@ -1121,6 +1137,8 @@ export interface components {
 		};
 	};
 	parameters: {
+		/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+		ExpectedUserId: string;
 		PostID: string;
 		MediaID: string;
 		PostOffset: number;
@@ -1421,30 +1439,38 @@ export interface operations {
 	ownProfile: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
 		requestBody?: never;
 		responses: {
-			/** @description Own profile; null until first save */
+			/** @description Session owner and own profile, which is null until first save */
 			200: {
 				headers: {
 					[name: string]: unknown;
 				};
 				content: {
 					'application/json': {
+						ownerId: string;
 						profile: components['schemas']['Profile'] | null;
 					};
 				};
 			};
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	saveProfile: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
@@ -1455,13 +1481,17 @@ export interface operations {
 		};
 		responses: {
 			200: components['responses']['Profile'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	uploadProfileImage: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				kind: 'avatar' | 'cover';
 			};
@@ -1476,13 +1506,17 @@ export interface operations {
 		};
 		responses: {
 			200: components['responses']['Profile'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	removeProfileImage: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				kind: 'avatar' | 'cover';
 			};
@@ -1491,6 +1525,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Profile'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
@@ -1575,20 +1610,27 @@ export interface operations {
 	ownTiers: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Tiers'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	createTier: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
@@ -1599,13 +1641,17 @@ export interface operations {
 		};
 		responses: {
 			201: components['responses']['Tier'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	updateTier: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: string;
 			};
@@ -1618,13 +1664,17 @@ export interface operations {
 		};
 		responses: {
 			200: components['responses']['Tier'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	deleteTier: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: string;
 			};
@@ -1633,13 +1683,17 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Message'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	archiveTier: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: string;
 			};
@@ -1648,13 +1702,17 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Message'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	reorderTiers: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
@@ -1681,6 +1739,7 @@ export interface operations {
 					};
 				};
 			};
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
@@ -1689,33 +1748,44 @@ export interface operations {
 			query?: {
 				offset?: components['parameters']['PostOffset'];
 			};
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Posts'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	createPost: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
 		requestBody: components['requestBodies']['Post'];
 		responses: {
 			201: components['responses']['Post'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	ownPost: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 			};
@@ -1724,13 +1794,17 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Post'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	updatePost: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 			};
@@ -1739,13 +1813,17 @@ export interface operations {
 		requestBody: components['requestBodies']['Post'];
 		responses: {
 			200: components['responses']['Post'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	deletePost: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 			};
@@ -1754,13 +1832,17 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Message'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	publishPost: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 			};
@@ -1769,13 +1851,17 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Post'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	unpublishPost: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 			};
@@ -1784,6 +1870,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Post'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
@@ -1793,7 +1880,10 @@ export interface operations {
 				kind: 'image' | 'audio' | 'video' | 'attachment';
 				filename: string;
 			};
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 			};
@@ -1816,6 +1906,7 @@ export interface operations {
 					};
 				};
 			};
+			412: components['responses']['AccountChanged'];
 			413: components['responses']['Error'];
 			default: components['responses']['Error'];
 		};
@@ -1823,7 +1914,10 @@ export interface operations {
 	detachPostMedia: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 				mediaID: components['parameters']['MediaID'];
@@ -1833,6 +1927,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Message'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
@@ -2121,7 +2216,10 @@ export interface operations {
 				from?: string;
 				to?: string;
 			};
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
@@ -2136,6 +2234,7 @@ export interface operations {
 					'application/json': components['schemas']['Analytics'];
 				};
 			};
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};

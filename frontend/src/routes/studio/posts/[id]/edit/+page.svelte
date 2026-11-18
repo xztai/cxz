@@ -26,9 +26,9 @@
 		<p class="studio-copy">Посты доступны после сохранения профиля автора.</p>
 		<a class="button button-primary" href={resolve('/studio/profile')}>Создать профиль</a>
 	</div>
-{:else if data.post}
+{:else if data.access.state === 'ready' && data.post}
 	{#key data.post.id}
-		<PostEditor initialPost={data.post} tiers={data.tiers} />
+		<PostEditor initialPost={data.post} tiers={data.tiers} ownerId={data.access.ownerId} />
 	{/key}
 {:else}
 	<div class="studio-panel">

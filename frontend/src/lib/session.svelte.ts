@@ -1,4 +1,4 @@
-import { createContext } from 'svelte';
+import { createContext, onDestroy } from 'svelte';
 import { api, type User } from '#lib/api/client.js';
 
 type Verification = {
@@ -12,7 +12,14 @@ export class Session {
 	user = $state.raw<User | null>(null);
 	ready = $state(false);
 	verification = $state.raw<Verification | null>(null);
+	verified = $state(false);
+	studioStatus = $state<'ready' | 'pending' | 'retry'>('ready');
 	#revision = 0;
+	#studioRevision = 0;
+	#studioRecovery?: { ownerId: string | undefined };
+	#lastStudioRecoveryOwner?: string;
+
+	constructor(private invalidateStudio: () => Promise<void>) {}
 
 	restoreVerification() {
 		if (this.verification) return;
@@ -69,12 +76,52 @@ export class Session {
 
 	setUser(user: User | null) {
 		this.#revision++;
+		const changed = this.user?.id !== user?.id;
 		this.user = user;
+		this.verified = true;
 		this.ready = true;
 		if (user) {
 			this.verification = null;
 			this.saveVerification();
 		}
+		const recovery = this.#studioRecovery;
+		this.#studioRecovery = undefined;
+		if (changed) {
+			this.#lastStudioRecoveryOwner = undefined;
+		} else if (recovery) {
+			// A repeated rejection with the same verified account should offer a manual retry.
+			if (recovery.ownerId !== undefined && recovery.ownerId === this.#lastStudioRecoveryOwner) {
+				this.studioStatus = 'retry';
+				return;
+			}
+			this.#lastStudioRecoveryOwner = recovery.ownerId;
+		}
+		if (changed || recovery) void this.#reloadStudio();
+	}
+
+	async #reloadStudio() {
+		const revision = ++this.#studioRevision;
+		this.studioStatus = 'pending';
+		try {
+			await this.invalidateStudio();
+			if (revision === this.#studioRevision) this.studioStatus = 'ready';
+		} catch {
+			if (revision === this.#studioRevision) this.studioStatus = 'retry';
+		}
+	}
+
+	recheckStudio(ownerId?: string) {
+		if (ownerId !== undefined && ownerId !== this.user?.id) return;
+		if (this.#studioRecovery && this.studioStatus === 'pending') return;
+		// A private request can fail while invalidation is still loading child data.
+		this.#studioRevision++;
+		this.#studioRecovery = { ownerId };
+		this.studioStatus = 'pending';
+		void this.refresh();
+	}
+
+	isStudioOwner(ownerId: string) {
+		return this.studioStatus === 'ready' && this.user?.id === ownerId;
 	}
 
 	async refresh() {
@@ -84,9 +131,19 @@ export class Session {
 			// A response started before login/logout must not replace the new session.
 			if (revision === this.#revision) this.setUser(user);
 		} catch {
-			if (revision === this.#revision) this.ready = true;
+			if (revision === this.#revision) {
+				this.ready = true;
+				if (this.#studioRecovery) this.studioStatus = 'retry';
+			}
 		}
 	}
 }
 
 export const [getSession, setSession] = createContext<Session>();
+
+export function studioEditorIsActive(ownerId: string) {
+	const session = getSession();
+	let mounted = true;
+	onDestroy(() => (mounted = false));
+	return () => mounted && session.isStudioOwner(ownerId);
+}

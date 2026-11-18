@@ -1,5 +1,5 @@
-import { expect, test, type Page, type Request } from '@playwright/test';
-import type { Analytics, Post, Profile, Tier } from '#lib/api/client.js';
+import { expect, test, type BrowserContext, type Page, type Request } from '@playwright/test';
+import type { Analytics, Post, Profile, Tier, User } from '#lib/api/client.js';
 
 const csrf = 'a'.repeat(43);
 const user = {
@@ -55,6 +55,12 @@ function post(id: string, published: string | null = null): Post {
 }
 
 async function mockAccount(page: Page) {
+	page.on('request', (request) => {
+		const path = new URL(request.url()).pathname;
+		if (request.method() === 'GET' && /^\/api\/v1\/me\/(tiers|posts|analytics)/.test(path)) {
+			expect(request.headers()['x-expected-user-id']).toBe(user.id);
+		}
+	});
 	await page.route('**/api/v1/me', (route) => route.fulfill({ json: { user } }));
 	await page.route('**/api/v1/auth/csrf', (route) =>
 		route.fulfill({
@@ -64,7 +70,8 @@ async function mockAccount(page: Page) {
 	);
 }
 
-function expectCsrf(request: Request) {
+function expectStudioMutation(request: Request) {
+	expect(request.headers()['x-expected-user-id']).toBe(user.id);
 	expect(request.headers().origin).toBe(new URL(request.url()).origin);
 	expect(request.headers()['x-csrf-token']).toBe(csrf);
 	expect(request.headers().cookie).toContain(`csrf=${csrf}`);
@@ -78,15 +85,15 @@ test('Studio guides setup and supports a public post before the first tier', asy
 	await page.route('**/api/v1/me/profile', async (route) => {
 		const request = route.request();
 		if (request.method() === 'PUT') {
-			expectCsrf(request);
+			expectStudioMutation(request);
 			savedProfile = { ...profile, ...request.postDataJSON() };
 		}
-		await route.fulfill({ json: { profile: savedProfile } });
+		await route.fulfill({ json: { ownerId: user.id, profile: savedProfile } });
 	});
 	await page.route('**/api/v1/me/tiers', async (route) => {
 		const request = route.request();
 		if (request.method() === 'POST') {
-			expectCsrf(request);
+			expectStudioMutation(request);
 			expect(request.postDataJSON().priceKopecks).toBe(15050);
 			tiers = [tier, ...tiers];
 			await route.fulfill({ status: 201, json: { tier } });
@@ -101,7 +108,7 @@ test('Studio guides setup and supports a public post before the first tier', asy
 	await page.route('**/api/v1/me/posts', async (route) => {
 		const request = route.request();
 		if (request.method() === 'POST') {
-			expectCsrf(request);
+			expectStudioMutation(request);
 			expect(request.postDataJSON().minimumTierId).toBeNull();
 			savedPost = { ...post('7'), ...request.postDataJSON() };
 			await route.fulfill({ status: 201, json: { post: savedPost } });
@@ -110,7 +117,7 @@ test('Studio guides setup and supports a public post before the first tier', asy
 		await route.fulfill({ json: { posts: savedPost ? [savedPost] : [], hasMore: false } });
 	});
 	await page.route('**/api/v1/me/posts/7/publish', async (route) => {
-		expectCsrf(route.request());
+		expectStudioMutation(route.request());
 		savedPost = { ...savedPost!, publishedAt };
 		await route.fulfill({ json: { post: savedPost } });
 	});
@@ -175,7 +182,9 @@ test('Studio confines tier moves to their section and reloads the order after a 
 	page
 }) => {
 	await mockAccount(page);
-	await page.route('**/api/v1/me/profile', (route) => route.fulfill({ json: { profile } }));
+	await page.route('**/api/v1/me/profile', (route) =>
+		route.fulfill({ json: { ownerId: user.id, profile } })
+	);
 	let tiers: Tier[] = [
 		{ ...tier, id: '1', name: 'Первая', position: 6 },
 		{ ...tier, id: '2', name: 'Вторая', position: 5 },
@@ -187,7 +196,7 @@ test('Studio confines tier moves to their section and reloads the order after a 
 	let reorderRequests = 0;
 	await page.route('**/api/v1/me/tiers', (route) => route.fulfill({ json: { tiers } }));
 	await page.route('**/api/v1/me/tiers/order', async (route) => {
-		expectCsrf(route.request());
+		expectStudioMutation(route.request());
 		reorderRequests++;
 		if (reorderRequests === 1) {
 			expect(route.request().postDataJSON()).toEqual({ ids: ['2', '1', '3', '4', '6'] });
@@ -251,7 +260,9 @@ test('Studio explains tier prices and reloads a deletion that becomes an archive
 	page
 }) => {
 	await mockAccount(page);
-	await page.route('**/api/v1/me/profile', (route) => route.fulfill({ json: { profile } }));
+	await page.route('**/api/v1/me/profile', (route) =>
+		route.fulfill({ json: { ownerId: user.id, profile } })
+	);
 	let tiers = [
 		{ ...tier, name: 'Эскизы', position: 3, priceKopecks: 99 },
 		{ ...tier, id: '2', name: 'Мастерская', position: 2, priceKopecks: 100, used: true },
@@ -259,7 +270,7 @@ test('Studio explains tier prices and reloads a deletion that becomes an archive
 	];
 	await page.route('**/api/v1/me/tiers', (route) => route.fulfill({ json: { tiers } }));
 	await page.route('**/api/v1/me/tiers/1', async (route) => {
-		expectCsrf(route.request());
+		expectStudioMutation(route.request());
 		expect(route.request().method()).toBe('DELETE');
 		tiers = tiers.map((current) =>
 			current.id === '1' ? { ...current, used: true, archived: true } : current
@@ -267,7 +278,7 @@ test('Studio explains tier prices and reloads a deletion that becomes an archive
 		await route.fulfill({ json: { message: 'Уровень убран с публичной страницы.' } });
 	});
 	await page.route('**/api/v1/me/tiers/2/archive', async (route) => {
-		expectCsrf(route.request());
+		expectStudioMutation(route.request());
 		expect(route.request().method()).toBe('POST');
 		tiers = tiers.map((current) => (current.id === '2' ? { ...current, archived: true } : current));
 		await route.fulfill({ json: { message: 'Уровень убран с публичной страницы.' } });
@@ -311,7 +322,9 @@ test('Studio checks older publications, lists three drafts, and retries analytic
 	await page.setViewportSize({ width: 360, height: 800 });
 	await mockAccount(page);
 	let failAnalytics = true;
-	await page.route('**/api/v1/me/profile', (route) => route.fulfill({ json: { profile } }));
+	await page.route('**/api/v1/me/profile', (route) =>
+		route.fulfill({ json: { ownerId: user.id, profile } })
+	);
 	await page.route('**/api/v1/me/tiers', (route) => route.fulfill({ json: { tiers: [tier] } }));
 	await page.route('**/api/v1/me/posts', (route) =>
 		route.fulfill({
@@ -365,15 +378,15 @@ test('Profile previews draft text and applies each image crop independently', as
 	let uploadCount = 0;
 	await page.route('**/api/v1/me/profile', async (route) => {
 		if (route.request().method() === 'PUT') {
-			expectCsrf(route.request());
+			expectStudioMutation(route.request());
 			await route.fulfill({ status: 409, json: { error: { code: 'nickname_exists' } } });
 		} else {
-			await route.fulfill({ json: { profile: savedProfile } });
+			await route.fulfill({ json: { ownerId: user.id, profile: savedProfile } });
 		}
 	});
 	await page.route('**/api/v1/me/profile/images/*', async (route) => {
 		const request = route.request();
-		expectCsrf(request);
+		expectStudioMutation(request);
 		const kind = new URL(request.url()).pathname.endsWith('/cover') ? 'cover' : 'avatar';
 		if (request.method() === 'DELETE') {
 			if (rejectRemoval) {
@@ -406,7 +419,7 @@ test('Profile previews draft text and applies each image crop independently', as
 				}
 			};
 		}
-		await route.fulfill({ json: { profile: savedProfile } });
+		await route.fulfill({ json: { ownerId: user.id, profile: savedProfile } });
 	});
 
 	await page.goto('/studio/profile');
@@ -473,4 +486,276 @@ test('Profile previews draft text and applies each image crop independently', as
 	await expect(cover.getByRole('status')).toHaveText('Обложка удалена.');
 	await expect(cover.getByRole('button', { name: 'Загрузить обложку' })).toBeFocused();
 	await expect(avatar.getByRole('img', { name: 'Аватар профиля' })).toBeVisible();
+});
+
+const secondUser: User = { ...user, id: '2', email: 'potter@example.com', nickname: 'potter' };
+const firstProfile: Profile = {
+	...profile,
+	description: 'Заметки первой мастерской',
+	avatar: {
+		url: '/artwork/garden.webp',
+		contentType: 'image/webp',
+		sizeBytes: 100,
+		width: 80,
+		height: 80
+	}
+};
+const secondProfile: Profile = {
+	...profile,
+	id: secondUser.id,
+	nickname: secondUser.nickname,
+	displayName: 'Гончарная студия',
+	description: 'Заметки второй мастерской'
+};
+
+async function mockSharedAccounts(context: BrowserContext) {
+	let current: User | null = user;
+	await context.route('**/api/v1/me', (route) => route.fulfill({ json: { user: current } }));
+	await context.route('**/api/v1/auth/csrf', (route) =>
+		route.fulfill({
+			json: { token: csrf },
+			headers: { 'Set-Cookie': `csrf=${csrf}; HttpOnly; Path=/; SameSite=Lax` }
+		})
+	);
+	await context.route('**/api/v1/auth/login', (route) => {
+		current = secondUser;
+		return route.fulfill({ json: { user: current } });
+	});
+	await context.route('**/api/v1/auth/logout', (route) => {
+		current = null;
+		return route.fulfill({ json: { message: 'ok' } });
+	});
+	return () => current;
+}
+
+async function signInAsSecondUser(page: Page) {
+	await page.getByRole('button', { name: 'Выйти', exact: true }).click();
+	await page.getByLabel('Email', { exact: true }).fill(secondUser.email);
+	await page.getByLabel('Пароль', { exact: true }).fill('test-password');
+	await page.getByRole('main').getByRole('button', { name: 'Войти', exact: true }).click();
+	await expect(page.getByText('@potter', { exact: true })).toBeVisible();
+}
+
+for (const scenario of ['second creator', 'second account without a profile', 'guest'] as const) {
+	test(`Studio replaces the previous editor after session refresh as ${scenario}`, async ({
+		page,
+		context
+	}) => {
+		const currentAccount = await mockSharedAccounts(context);
+		const enteredReload = Promise.withResolvers<void>();
+		const reload = Promise.withResolvers<void>();
+		await context.route('**/api/v1/me/profile', async (route) => {
+			const current = currentAccount();
+			if (current?.id === user.id) {
+				await route.fulfill({ json: { ownerId: user.id, profile: firstProfile } });
+				return;
+			}
+			enteredReload.resolve();
+			await reload.promise;
+			if (current) {
+				await route.fulfill({
+					json: {
+						ownerId: current.id,
+						profile: scenario === 'second creator' ? secondProfile : null
+					}
+				});
+			} else {
+				await route.fulfill({ status: 401, json: { error: { code: 'unauthorized' } } });
+			}
+		});
+
+		const otherTab = await context.newPage();
+		await otherTab.goto('/login');
+		await page.goto('/studio/profile');
+		const main = page.getByRole('main');
+		const name = main.getByLabel('Отображаемое имя');
+		const description = main.getByLabel('Описание');
+		const deleteAvatar = main.getByRole('button', { name: 'Удалить аватар' });
+		await expect(name).toHaveValue(firstProfile.displayName);
+		await expect(description).toHaveValue(firstProfile.description);
+		await expect(deleteAvatar).toBeVisible();
+		await description.fill('Несохранённый черновик первого автора');
+
+		const enteredRefresh = Promise.withResolvers<void>();
+		const refresh = Promise.withResolvers<void>();
+		await page.route(
+			'**/api/v1/me',
+			async (route) => {
+				enteredRefresh.resolve();
+				await refresh.promise;
+				await route.fulfill({ json: { user: currentAccount() } });
+			},
+			{ times: 1 }
+		);
+		const sameAccountRefresh = page.waitForResponse('**/api/v1/me');
+		try {
+			await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+			await enteredRefresh.promise;
+			await expect(description).toHaveValue('Несохранённый черновик первого автора');
+		} finally {
+			refresh.resolve();
+		}
+		await sameAccountRefresh;
+		await expect(description).toHaveValue('Несохранённый черновик первого автора');
+
+		if (scenario === 'guest') {
+			await otherTab.getByRole('button', { name: 'Выйти', exact: true }).click();
+			await expect(otherTab.getByRole('banner').getByText('@artist', { exact: true })).toHaveCount(
+				0
+			);
+		} else {
+			await signInAsSecondUser(otherTab);
+		}
+
+		try {
+			if (scenario === 'second account without a profile') {
+				await page.evaluate(() =>
+					window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
+				);
+			} else {
+				await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+			}
+			await enteredReload.promise;
+			await expect(name).toHaveCount(0);
+			await expect(description).toHaveCount(0);
+			await expect(deleteAvatar).toHaveCount(0);
+			await expect(main.getByRole('img', { name: 'Аватар профиля' })).toHaveCount(0);
+			if (scenario === 'guest') {
+				await expect(main.getByRole('link', { name: 'Войти', exact: true })).toBeVisible();
+			} else {
+				await expect(main.getByRole('status')).toHaveText('Загружаем…');
+			}
+		} finally {
+			reload.resolve();
+		}
+
+		if (scenario === 'guest') {
+			await expect(main.getByRole('link', { name: 'Войти', exact: true })).toBeVisible();
+		} else if (scenario === 'second account without a profile') {
+			await expect(main.getByRole('heading', { name: 'Создать профиль' })).toBeVisible();
+			await expect(name).toHaveValue('');
+			await expect(description).toHaveValue('');
+			await expect(main.getByLabel('Ник', { exact: true })).toHaveValue(secondUser.nickname);
+		} else {
+			await expect(name).toHaveValue(secondProfile.displayName);
+			await expect(description).toHaveValue(secondProfile.description);
+		}
+		if (scenario !== 'guest') await expect(deleteAvatar).toBeDisabled();
+	});
+}
+
+test('An image mutation delayed by CSRF retains its original account and is never replayed', async ({
+	page,
+	context
+}) => {
+	const currentAccount = await mockSharedAccounts(context);
+	const enteredCSRF = Promise.withResolvers<void>();
+	const releaseCSRF = Promise.withResolvers<void>();
+	await context.route('**/api/v1/auth/csrf', async (route) => {
+		if (route.request().frame().page() !== page) return route.fallback();
+		enteredCSRF.resolve();
+		await releaseCSRF.promise;
+		await route.fallback();
+	});
+	await context.route('**/api/v1/me/profile', (route) => {
+		const current = currentAccount()!;
+		return route.fulfill({
+			json: { ownerId: current.id, profile: current.id === user.id ? firstProfile : secondProfile }
+		});
+	});
+	const mutationOwners: string[] = [];
+	await context.route('**/api/v1/me/profile/images/avatar', (route) => {
+		const request = route.request();
+		expectStudioMutation(request);
+		expect(request.method()).toBe('DELETE');
+		mutationOwners.push(request.headers()['x-expected-user-id']);
+		expect(currentAccount()?.id).toBe(secondUser.id);
+		return route.fulfill({ status: 412, json: { error: { code: 'account_changed' } } });
+	});
+
+	const otherTab = await context.newPage();
+	await otherTab.goto('/login');
+	await page.goto('/studio/profile');
+	await page.getByRole('button', { name: 'Удалить аватар' }).click();
+	await enteredCSRF.promise;
+	try {
+		await signInAsSecondUser(otherTab);
+	} finally {
+		releaseCSRF.resolve();
+	}
+	await expect(page.getByLabel('Отображаемое имя')).toHaveValue(secondProfile.displayName);
+	await expect(page.getByRole('button', { name: 'Удалить аватар' })).toBeDisabled();
+	expect(mutationOwners).toEqual([user.id]);
+});
+
+test('A private read can restart session verification during an account reload', async ({
+	page,
+	context
+}) => {
+	const currentAccount = await mockSharedAccounts(context);
+	const enteredTiers = Promise.withResolvers<void>();
+	const releaseTiers = Promise.withResolvers<void>();
+	await context.route('**/api/v1/me/profile', (route) => {
+		const current = currentAccount();
+		return current
+			? route.fulfill({
+					json: {
+						ownerId: current.id,
+						profile: current.id === user.id ? firstProfile : secondProfile
+					}
+				})
+			: route.fulfill({ status: 401, json: { error: { code: 'unauthorized' } } });
+	});
+	await context.route('**/api/v1/me/tiers', async (route) => {
+		const ownerId = route.request().headers()['x-expected-user-id'];
+		if (ownerId === secondUser.id) {
+			enteredTiers.resolve();
+			await releaseTiers.promise;
+		}
+		const current = currentAccount();
+		if (!current) {
+			await route.fulfill({ status: 401, json: { error: { code: 'unauthorized' } } });
+		} else {
+			expect(ownerId).toBe(current.id);
+			await route.fulfill({ json: { tiers: [tier] } });
+		}
+	});
+
+	const otherTab = await context.newPage();
+	await otherTab.goto('/login');
+	await page.goto('/studio/tiers');
+	const main = page.getByRole('main');
+	await expect(main.getByRole('heading', { name: tier.name })).toBeVisible();
+
+	try {
+		await signInAsSecondUser(otherTab);
+		await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+		await enteredTiers.promise;
+		await expect(main.getByRole('status')).toHaveText('Загружаем…');
+		await otherTab.getByRole('button', { name: 'Выйти', exact: true }).click();
+		await expect(otherTab.getByRole('banner').getByText('@potter', { exact: true })).toHaveCount(0);
+	} finally {
+		releaseTiers.resolve();
+	}
+	await expect(main.getByRole('link', { name: 'Войти', exact: true })).toBeVisible();
+	await expect(main.getByRole('heading', { name: tier.name })).toHaveCount(0);
+});
+
+test('Studio keeps write controls hidden until the bootstrap response identifies its owner', async ({
+	page
+}) => {
+	await mockAccount(page);
+	let hasOwner = false;
+	await page.route('**/api/v1/me/profile', (route) =>
+		route.fulfill({ json: hasOwner ? { ownerId: user.id, profile } : { profile } })
+	);
+
+	await page.goto('/studio/profile');
+	const main = page.getByRole('main');
+	const retry = main.getByRole('button', { name: 'Повторить' });
+	await expect(retry).toBeVisible();
+	await expect(main.getByRole('button', { name: 'Сохранить', exact: true })).toHaveCount(0);
+	hasOwner = true;
+	await retry.click();
+	await expect(main.getByLabel('Отображаемое имя')).toHaveValue(profile.displayName);
 });

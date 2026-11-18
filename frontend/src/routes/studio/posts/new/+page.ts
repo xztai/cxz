@@ -6,7 +6,7 @@ export const load: PageLoad = async ({ depends, fetch, parent }) => {
 	const { access } = await parent();
 	if (access.state !== 'ready' || !access.profile) return { tiers: null };
 	return {
-		tiers: await api.ownTiers(fetch).then(
+		tiers: await api.ownTiers(access.ownerId, fetch).then(
 			({ tiers }) => tiers,
 			() => null
 		)

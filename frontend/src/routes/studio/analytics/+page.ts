@@ -6,6 +6,8 @@ export const load: PageLoad = async ({ parent, depends, fetch }) => {
 	const { access } = await parent();
 	return {
 		analytics:
-			access.state === 'ready' && access.profile ? api.analytics(fetch).catch(() => null) : null
+			access.state === 'ready' && access.profile
+				? api.analytics(access.ownerId, fetch).catch(() => null)
+				: null
 	};
 };

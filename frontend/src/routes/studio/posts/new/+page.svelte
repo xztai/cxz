@@ -11,7 +11,7 @@
 <a class="studio-link back" href={resolve('/studio/posts')}>Все посты</a>
 <h1 class="studio-heading">Новый пост</h1>
 {#if data.access.state === 'ready' && data.access.profile}
-	<PostEditor tiers={data.tiers} />
+	<PostEditor tiers={data.tiers} ownerId={data.access.ownerId} />
 {:else}
 	<div class="studio-panel">
 		<p class="studio-copy">Посты можно создавать после сохранения профиля автора.</p>

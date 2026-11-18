@@ -13,7 +13,7 @@
 	} from '#lib/api/client.js';
 	import AuthorProfileHeader from '#lib/components/AuthorProfileHeader.svelte';
 	import Icon from '#lib/components/Icon.svelte';
-	import { getSession } from '#lib/session.svelte.js';
+	import { getSession, studioEditorIsActive } from '#lib/session.svelte.js';
 	import ProfileImageCrop from './ProfileImageCrop.svelte';
 	import type { PageProps } from './$types';
 
@@ -37,6 +37,8 @@
 
 	let { data }: PageProps = $props();
 	const session = getSession();
+	const ownerId = untrack(() => (data.access.state === 'ready' ? data.access.ownerId : ''));
+	const isActive = studioEditorIsActive(ownerId);
 	let profile = $state.raw<Profile | null>(
 		untrack(() => (data.access.state === 'ready' ? data.access.profile : null))
 	);
@@ -120,12 +122,12 @@
 	async function focusField(form: HTMLFormElement, name: keyof ProfileInput) {
 		await tick();
 		const field = form.elements.namedItem(name);
-		if (field instanceof HTMLElement) field.focus();
+		if (isActive() && field instanceof HTMLElement) field.focus();
 	}
 
 	async function save(event: SubmitEvent) {
 		event.preventDefault();
-		if (saving || changingImage) return;
+		if (saving || changingImage || !isActive()) return;
 		const form = event.currentTarget as HTMLFormElement;
 		const input = {
 			nickname: nickname.trim(),
@@ -150,7 +152,9 @@
 
 		saving = true;
 		try {
-			({ profile } = await api.saveProfile(input));
+			const result = await api.saveProfile(ownerId, input);
+			if (!isActive()) return;
+			profile = result.profile;
 			nicknameDraft = profile.nickname;
 			displayName = profile.displayName;
 			description = profile.description;
@@ -158,6 +162,7 @@
 			void session.refresh();
 			void invalidate('studio:profile');
 		} catch (error) {
+			if (!isActive()) return;
 			if (error instanceof ApiError && error.code === 'nickname_exists') {
 				fieldErrors.nickname = 'Этот ник уже занят. Попробуйте другой.';
 			} else {
@@ -196,13 +201,14 @@
 	}
 
 	async function changeImage(kind: ProfileImageKind, image?: Blob) {
-		if (!profile || changingImage || saving) return;
+		if (!profile || changingImage || saving || !isActive()) return;
 		changingImage = true;
 		imageStatus[kind] = { error: false, message: image ? 'Загружаем…' : 'Удаляем…' };
 		try {
 			const result = image
-				? await api.uploadProfileImage(kind, image)
-				: await api.removeProfileImage(kind);
+				? await api.uploadProfileImage(ownerId, kind, image)
+				: await api.removeProfileImage(ownerId, kind);
+			if (!isActive()) return;
 			profile = result.profile;
 			imageStatus[kind] = {
 				error: false,
@@ -210,6 +216,7 @@
 			};
 			void invalidate('studio:profile');
 		} catch (error) {
+			if (!isActive()) return;
 			const message = imageError(error);
 			imageStatus[kind] = { error: true, message };
 			if (image) throw new Error(message, { cause: error });

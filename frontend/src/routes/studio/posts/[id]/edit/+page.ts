@@ -9,8 +9,8 @@ export const load: PageLoad = async ({ depends, fetch, params, parent }) => {
 	}
 	try {
 		const [{ post }, tiers] = await Promise.all([
-			api.ownPost(params.id, fetch),
-			api.ownTiers(fetch).then(
+			api.ownPost(access.ownerId, params.id, fetch),
+			api.ownTiers(access.ownerId, fetch).then(
 				({ tiers }) => tiers,
 				() => null
 			)
