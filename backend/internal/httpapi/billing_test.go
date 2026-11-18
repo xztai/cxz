@@ -701,3 +701,119 @@ func TestIntegrationBillingServerWebhookIgnoresPayloadAndStalePending(t *testing
 		t.Fatal("stale pending overwrote paid state")
 	}
 }
+
+func TestIntegrationBillingManualReconciliation(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		remoteState string
+		unmatched   bool
+		mismatch    bool
+		otherID     bool
+		settled     bool
+		failGet     bool
+		want        billing.ReconciliationOutcome
+		duplicate   billing.ReconciliationOutcome
+		status      string
+		grants      int
+		notices     int
+		callback    int
+	}{
+		{name: "unmatched", remoteState: "succeeded", unmatched: true, want: billing.ReconciliationUnmatched, status: "pending", callback: 200},
+		{name: "pending", remoteState: "pending", want: billing.ReconciliationPending, status: "pending", callback: 200},
+		{name: "mismatch", remoteState: "succeeded", mismatch: true, want: billing.ReconciliationReview, status: "review", callback: 200},
+		{name: "unexpected status", remoteState: "waiting_for_capture", want: billing.ReconciliationReview, status: "review", callback: 200},
+		{name: "succeeded", remoteState: "succeeded", want: billing.ReconciliationSucceeded, duplicate: billing.ReconciliationAlreadySucceeded, status: "succeeded", grants: 1, callback: 200},
+		{name: "canceled", remoteState: "canceled", want: billing.ReconciliationCanceled, duplicate: billing.ReconciliationAlreadyCanceled, status: "canceled", notices: 1, callback: 200},
+		{name: "terminal different provider payment", remoteState: "succeeded", settled: true, otherID: true, want: billing.ReconciliationReview, status: "succeeded", grants: 1, callback: 200},
+		{name: "terminal different amount", remoteState: "succeeded", settled: true, mismatch: true, want: billing.ReconciliationReview, status: "succeeded", grants: 1, callback: 200},
+		{name: "terminal stale provider state", remoteState: "pending", settled: true, want: billing.ReconciliationAlreadySucceeded, status: "succeeded", grants: 1, callback: 200},
+		{name: "provider unavailable", failGet: true, status: "pending", callback: 503},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := billingHarness(t, true)
+			if tt.settled {
+				f.paid(t)
+			} else {
+				f.process(t)
+			}
+			ctx := t.Context()
+			before, err := f.h.server.q.PaymentByID(ctx, f.payment.ID)
+			if err != nil {
+				t.Fatal("read payment before reconciliation")
+			}
+
+			f.provider.mu.Lock()
+			p := f.provider.payments[f.payment.ID]
+			p.Status = tt.remoteState
+			p.Paid = p.Status == "succeeded"
+			if tt.unmatched {
+				p.Metadata = map[string]string{
+					"etheyl_payment_id":   "unrelated-payment",
+					"etheyl_agreement_id": p.Metadata["etheyl_agreement_id"],
+				}
+			}
+			if tt.mismatch {
+				p.Amount.Value = "0.01"
+			}
+			if tt.otherID {
+				p.ID = "different-remote-payment"
+				f.provider.payments["different"] = p
+			} else {
+				f.provider.payments[f.payment.ID] = p
+			}
+			f.provider.failGet = tt.failGet
+			creates := f.provider.createCalls
+			f.provider.mu.Unlock()
+
+			assertState := func() {
+				t.Helper()
+				row, err := f.h.server.q.PaymentByID(ctx, f.payment.ID)
+				if err != nil || row.Status != tt.status {
+					t.Fatalf("payment state = %q, want %q (query failed: %t)", row.Status, tt.status, err != nil)
+				}
+				if tt.settled && (row.ProviderID != before.ProviderID || row.CompletedAt != before.CompletedAt || row.PeriodEnd != before.PeriodEnd || row.FailureCode != before.FailureCode) {
+					t.Error("reconciliation changed a terminal payment")
+				}
+				var grants, notices int
+				err = f.h.pool.QueryRow(ctx, "SELECT (SELECT count(*) FROM subscriptions), (SELECT count(*) FROM mail_outbox WHERE kind='billing')").Scan(&grants, &notices)
+				if err != nil || grants != tt.grants || notices != tt.notices {
+					t.Fatalf("grants = %d, notices = %d, want %d and %d (query failed: %t)", grants, notices, tt.grants, tt.notices, err != nil)
+				}
+				f.provider.mu.Lock()
+				defer f.provider.mu.Unlock()
+				if f.provider.createCalls != creates {
+					t.Error("reconciliation attempted provider creation")
+				}
+			}
+
+			outcome, err := f.svc.Reconcile(ctx, p.ID)
+			if outcome != tt.want || errors.Is(err, billing.ErrProvider) != tt.failGet || (err != nil && !tt.failGet) {
+				t.Fatalf("reconciliation = %q, want %q (error: %t)", outcome, tt.want, err != nil)
+			}
+			assertState()
+			if tt.duplicate != "" {
+				outcome, err := f.svc.Reconcile(ctx, p.ID)
+				if err != nil || outcome != tt.duplicate {
+					t.Fatalf("duplicate reconciliation = %q, want %q (error: %t)", outcome, tt.duplicate, err != nil)
+				}
+				assertState()
+			}
+
+			body := fmt.Sprintf(`{"type":"notification","event":"payment.succeeded","object":{"id":%q}}`, p.ID)
+			req, err := http.NewRequestWithContext(ctx, "POST", f.h.url+"/api/v1/billing/yookassa/webhook", strings.NewReader(body))
+			if err != nil {
+				t.Fatal("construct callback request")
+			}
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal("send callback request")
+			}
+			_, _ = io.Copy(io.Discard, res.Body)
+			_ = res.Body.Close()
+			if res.StatusCode != tt.callback {
+				t.Errorf("callback status = %d, want %d", res.StatusCode, tt.callback)
+			}
+			assertState()
+		})
+	}
+}

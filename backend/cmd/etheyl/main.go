@@ -97,11 +97,8 @@ func run(logger *slog.Logger) error {
 		if err != nil {
 			return err
 		}
-		if err = payments.Webhook(ctx, *id); err != nil {
-			return err
-		}
-		logger.Info("payment reconciliation completed")
-		return nil
+		outcome, err := payments.Reconcile(ctx, *id)
+		return reportReconciliation(logger, outcome, err)
 	case "storage-init":
 		storage, err := media.New(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3Secure)
 		if err != nil {
@@ -190,6 +187,23 @@ func run(logger *slog.Logger) error {
 		return err
 	default:
 		return errors.New("usage: etheyl api|worker|migrate|admin|requeue-mail|reconcile-payment|healthcheck")
+	}
+}
+
+func reportReconciliation(logger *slog.Logger, outcome billing.ReconciliationOutcome, err error) error {
+	if err != nil {
+		return err
+	}
+	switch outcome {
+	case billing.ReconciliationSucceeded, billing.ReconciliationCanceled,
+		billing.ReconciliationAlreadySucceeded, billing.ReconciliationAlreadyCanceled:
+		logger.Info("payment reconciliation", "outcome", outcome)
+		return nil
+	case billing.ReconciliationUnmatched, billing.ReconciliationPending, billing.ReconciliationReview:
+		logger.Info("payment reconciliation", "outcome", outcome)
+		return errors.New("payment reconciliation unresolved")
+	default:
+		return errors.New("unknown payment reconciliation outcome")
 	}
 }
 

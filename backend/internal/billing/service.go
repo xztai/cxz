@@ -348,7 +348,8 @@ func (s *Service) process(ctx context.Context, p store.Payment) error {
 	if err != nil {
 		return s.q.RetryPayment(ctx, store.RetryPaymentParams{ID: p.ID, FailureCode: "provider_unavailable"})
 	}
-	return s.apply(ctx, p, remote)
+	_, err = s.apply(ctx, p, remote)
+	return err
 }
 func (s *Service) matches(p store.Payment, r RemotePayment) bool {
 	return providerID.MatchString(r.ID) && (p.ProviderID == "" || p.ProviderID == r.ID) && r.Test && r.Recipient.AccountID == s.cfg.YooKassaShopID && r.Amount.Currency == "RUB" && r.Amount.Value == money(p.AmountKopecks) && r.Metadata["etheyl_payment_id"] == p.ID && r.Metadata["etheyl_agreement_id"] == strconv.FormatInt(p.AgreementID, 10)
@@ -356,65 +357,96 @@ func (s *Service) matches(p store.Payment, r RemotePayment) bool {
 
 // Webhooks carry only a hint; authoritative payment data is fetched with shop credentials.
 func (s *Service) Webhook(ctx context.Context, id string) error {
+	_, err := s.Reconcile(ctx, id)
+	return err
+}
+
+// ReconciliationOutcome describes the result of a verified provider lookup.
+type ReconciliationOutcome string
+
+const (
+	ReconciliationUnmatched        ReconciliationOutcome = "unmatched"
+	ReconciliationSucceeded        ReconciliationOutcome = "succeeded"
+	ReconciliationCanceled         ReconciliationOutcome = "canceled"
+	ReconciliationPending          ReconciliationOutcome = "pending"
+	ReconciliationReview           ReconciliationOutcome = "review"
+	ReconciliationAlreadySucceeded ReconciliationOutcome = "already_succeeded"
+	ReconciliationAlreadyCanceled  ReconciliationOutcome = "already_canceled"
+)
+
+// Reconcile verifies an existing provider payment and applies it to its local attempt.
+func (s *Service) Reconcile(ctx context.Context, id string) (ReconciliationOutcome, error) {
 	if !s.Enabled() {
-		return ErrProvider
+		return "", ErrProvider
 	}
 	remote, err := s.provider.Get(ctx, id)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if remote.ID != id {
-		return ErrProvider
+		return "", ErrProvider
 	}
 	p, err := s.q.PaymentByID(ctx, remote.Metadata["etheyl_payment_id"])
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
+		return ReconciliationUnmatched, nil
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	return s.apply(ctx, p, remote)
 }
-func (s *Service) apply(ctx context.Context, p store.Payment, r RemotePayment) error {
+func (s *Service) apply(ctx context.Context, p store.Payment, r RemotePayment) (ReconciliationOutcome, error) {
 	tx, q, a, err := s.lockAgreement(ctx, p.AgreementID, 0)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer rollback(tx)
 	p, err = q.LockPayment(ctx, p.ID)
 	if err != nil {
-		return err
+		return "", err
 	}
+	matched := s.matches(p, r)
 	if p.Status == "succeeded" || p.Status == "canceled" {
-		return nil
-	}
-	if !s.matches(p, r) {
-		if err = q.ReviewPayment(ctx, store.ReviewPaymentParams{ID: p.ID, FailureCode: "provider_mismatch"}); err != nil {
-			return err
+		if p.ProviderID != r.ID || !matched {
+			return ReconciliationReview, nil
 		}
-		return tx.Commit(ctx)
+		if p.Status == "succeeded" {
+			return ReconciliationAlreadySucceeded, nil
+		}
+		return ReconciliationAlreadyCanceled, nil
+	}
+	commit := func(outcome ReconciliationOutcome) (ReconciliationOutcome, error) {
+		if err := tx.Commit(ctx); err != nil {
+			return "", err
+		}
+		return outcome, nil
+	}
+	if !matched {
+		if err = q.ReviewPayment(ctx, store.ReviewPaymentParams{ID: p.ID, FailureCode: "provider_mismatch"}); err != nil {
+			return "", err
+		}
+		return commit(ReconciliationReview)
 	}
 	if r.Status == "canceled" {
 		if err = s.finishFailure(ctx, q, a, p, r.ID, "payment_canceled"); err != nil {
-			return err
+			return "", err
 		}
-		return tx.Commit(ctx)
+		return commit(ReconciliationCanceled)
+	}
+	if r.Status == "pending" {
+		if err = q.UpdateProviderPayment(ctx, store.UpdateProviderPaymentParams{ID: p.ID, ProviderID: r.ID, ConfirmationUrl: safeConfirmation(r.Confirmation.URL)}); err != nil {
+			return "", err
+		}
+		return commit(ReconciliationPending)
 	}
 	if r.Status != "succeeded" {
-		if r.Status != "pending" {
-			if err = q.ReviewPayment(ctx, store.ReviewPaymentParams{ID: p.ID, FailureCode: "unexpected_status"}); err != nil {
-				return err
-			}
-		} else {
-			err = q.UpdateProviderPayment(ctx, store.UpdateProviderPaymentParams{ID: p.ID, ProviderID: r.ID, ConfirmationUrl: safeConfirmation(r.Confirmation.URL)})
+		if err = q.ReviewPayment(ctx, store.ReviewPaymentParams{ID: p.ID, FailureCode: "unexpected_status"}); err != nil {
+			return "", err
 		}
-		if err != nil {
-			return err
-		}
-		return tx.Commit(ctx)
+		return commit(ReconciliationReview)
 	}
 	if !r.Paid {
-		return ErrProvider
+		return "", ErrProvider
 	}
 	start := time.Now().UTC()
 	anchor := start.Day()
@@ -433,15 +465,15 @@ func (s *Service) apply(ctx context.Context, p store.Payment, r RemotePayment) e
 		method = r.Method.ID
 	}
 	if err = q.CompleteAgreement(ctx, store.CompleteAgreementParams{ID: a.ID, TierID: p.TierID, PriceKopecks: p.AmountKopecks, PaidUntil: ts(end), AnchorDay: int32(anchor), MethodID: method}); err != nil {
-		return err
+		return "", err
 	}
 	if err = q.PutPaidAccess(ctx, store.PutPaidAccessParams{SubscriberID: a.SubscriberID, AuthorID: a.AuthorID, TierID: p.TierID, StartsAt: ts(start), ExpiresAt: ts(end)}); err != nil {
-		return err
+		return "", err
 	}
 	if err = q.FinishPayment(ctx, store.FinishPaymentParams{ID: p.ID, ProviderID: r.ID, Status: "succeeded", PeriodStart: ts(start), PeriodEnd: ts(end)}); err != nil {
-		return err
+		return "", err
 	}
-	return tx.Commit(ctx)
+	return commit(ReconciliationSucceeded)
 }
 func (s *Service) finishFailure(ctx context.Context, q *store.Queries, a store.BillingAgreement, p store.Payment, provider, reason string) error {
 	if err := q.FinishPayment(ctx, store.FinishPaymentParams{ID: p.ID, ProviderID: provider, Status: "canceled", FailureCode: reason}); err != nil {
