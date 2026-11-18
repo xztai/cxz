@@ -50,7 +50,7 @@ func (s *Server) profile(ctx context.Context, id int64) (Profile, error) {
 		return Profile{}, err
 	}
 	for _, img := range images {
-		meta := &ImageMetadata{URL: "/api/v1/authors/" + p.Nickname + "/images/" + img.Kind + "?v=" + img.Sha256, ContentType: img.ContentType, SizeBytes: img.SizeBytes, Width: img.Width, Height: img.Height}
+		meta := publicImageMetadata(p.Nickname, img.Kind, img.Sha256, img.ContentType, img.SizeBytes, img.Width, img.Height)
 		if img.Kind == "avatar" {
 			result.Avatar = meta
 		} else {
@@ -138,17 +138,32 @@ func (s *Server) catalog(w http.ResponseWriter, r *http.Request) error {
 	}
 	profiles := make([]Profile, 0, min(len(rows), 24))
 	for _, row := range rows[:min(len(rows), 24)] {
-		p, err := s.profile(r.Context(), row.UserID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			continue
+		p := Profile{
+			ID:          strconv.FormatInt(row.UserID, 10),
+			Nickname:    row.Nickname,
+			DisplayName: row.DisplayName,
+			Description: row.Description,
 		}
-		if err != nil {
-			return err
+		if row.AvatarSha256 != "" {
+			p.Avatar = publicImageMetadata(row.Nickname, "avatar", row.AvatarSha256, row.AvatarContentType, row.AvatarSizeBytes, row.AvatarWidth, row.AvatarHeight)
+		}
+		if row.CoverSha256 != "" {
+			p.Cover = publicImageMetadata(row.Nickname, "cover", row.CoverSha256, row.CoverContentType, row.CoverSizeBytes, row.CoverWidth, row.CoverHeight)
 		}
 		profiles = append(profiles, p)
 	}
 	return respond(w, 200, map[string]any{"authors": profiles, "hasMore": len(rows) > 24})
 }
+func publicImageMetadata(nickname, kind, sha256, contentType string, sizeBytes int64, width, height int32) *ImageMetadata {
+	return &ImageMetadata{
+		URL:         "/api/v1/authors/" + nickname + "/images/" + kind + "?v=" + sha256,
+		ContentType: contentType,
+		SizeBytes:   sizeBytes,
+		Width:       width,
+		Height:      height,
+	}
+}
+
 func (s *Server) author(w http.ResponseWriter, r *http.Request) error {
 	nickname, ok := auth.NormalizeNickname(r.PathValue("nickname"))
 	if !ok {

@@ -15,7 +15,20 @@ SELECT p.*, u.nickname FROM creator_profiles p JOIN users u ON u.id = p.user_id
 WHERE u.nickname = $1 AND NOT u.blocked AND u.email_verified;
 
 -- name: ListCreators :many
-SELECT p.*, u.nickname FROM creator_profiles p JOIN users u ON u.id = p.user_id
+SELECT p.user_id, u.nickname, p.display_name, p.description,
+ COALESCE(avatar.sha256, ''::text) AS avatar_sha256,
+ COALESCE(avatar.content_type, ''::text) AS avatar_content_type,
+ COALESCE(avatar.size_bytes, 0::bigint) AS avatar_size_bytes,
+ COALESCE(avatar.width, 0::integer) AS avatar_width,
+ COALESCE(avatar.height, 0::integer) AS avatar_height,
+ COALESCE(cover.sha256, ''::text) AS cover_sha256,
+ COALESCE(cover.content_type, ''::text) AS cover_content_type,
+ COALESCE(cover.size_bytes, 0::bigint) AS cover_size_bytes,
+ COALESCE(cover.width, 0::integer) AS cover_width,
+ COALESCE(cover.height, 0::integer) AS cover_height
+FROM creator_profiles p JOIN users u ON u.id = p.user_id
+LEFT JOIN profile_images avatar ON avatar.user_id = p.user_id AND avatar.kind = 'avatar'
+LEFT JOIN profile_images cover ON cover.user_id = p.user_id AND cover.kind = 'cover'
 WHERE NOT u.blocked AND u.email_verified
  AND (sqlc.arg(search)::text = '' OR strpos(lower(p.display_name), lower(sqlc.arg(search))) > 0
  OR strpos(u.nickname, lower(sqlc.arg(search))) > 0 OR strpos(lower(p.description), lower(sqlc.arg(search))) > 0)
