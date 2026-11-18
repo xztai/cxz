@@ -562,7 +562,7 @@ export interface paths {
 		};
 		get?: never;
 		put?: never;
-		/** @description Confirm the current tier price in kopecks. The server checks it against the stored price before creating a payment or returning an open payment. */
+		/** @description Confirm the current tier price in kopecks. The server checks it against the stored price before creating a payment or considering reuse. It returns an open payment only for a manual checkout with the same tier, amount and original auto-renew consent. */
 		post: operations['checkout'];
 		delete?: never;
 		options?: never;
@@ -1932,7 +1932,7 @@ export interface operations {
 		};
 		responses: {
 			202: components['responses']['Payment'];
-			/** @description price_changed if the tier price differs from the confirmed price, own_subscription for the subscriber's own tier, or subscription_active if the subscription is already paid. */
+			/** @description price_changed if the tier price differs from the confirmed price, checkout_terms_conflict if an open payment is an automatic renewal or has different confirmed terms, own_subscription for the subscriber's own tier, or subscription_active if the subscription is already paid. */
 			409: {
 				headers: {
 					[name: string]: unknown;
@@ -1941,7 +1941,11 @@ export interface operations {
 					'application/json': components['schemas']['Error'] & {
 						error?: {
 							/** @enum {string} */
-							code?: 'price_changed' | 'own_subscription' | 'subscription_active';
+							code?:
+								| 'price_changed'
+								| 'checkout_terms_conflict'
+								| 'own_subscription'
+								| 'subscription_active';
 						};
 					};
 				};

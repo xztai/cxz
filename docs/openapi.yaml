@@ -544,7 +544,7 @@ paths:
       "post":
         {
           "operationId": "checkout",
-          "description": "Confirm the current tier price in kopecks. The server checks it against the stored price before creating a payment or returning an open payment.",
+          "description": "Confirm the current tier price in kopecks. The server checks it against the stored price before creating a payment or considering reuse. It returns an open payment only for a manual checkout with the same tier, amount and original auto-renew consent.",
           "security": [{ "session": [], "csrf": [] }],
           "responses":
             {
@@ -552,7 +552,7 @@ paths:
               "202": { "$ref": "#/components/responses/Payment" },
               "409":
                 {
-                  "description": "price_changed if the tier price differs from the confirmed price, own_subscription for the subscriber's own tier, or subscription_active if the subscription is already paid.",
+                  "description": "price_changed if the tier price differs from the confirmed price, checkout_terms_conflict if an open payment is an automatic renewal or has different confirmed terms, own_subscription for the subscriber's own tier, or subscription_active if the subscription is already paid.",
                   "content":
                     {
                       "application/json":
@@ -562,7 +562,7 @@ paths:
                               "allOf":
                                 [
                                   { "$ref": "#/components/schemas/Error" },
-                                  { "properties": { "error": { "properties": { "code": { "type": "string", "enum": ["price_changed", "own_subscription", "subscription_active"] } } } } },
+                                  { "properties": { "error": { "properties": { "code": { "type": "string", "enum": ["price_changed", "checkout_terms_conflict", "own_subscription", "subscription_active"] } } } } },
                                 ],
                             },
                         },

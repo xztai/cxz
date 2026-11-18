@@ -113,6 +113,9 @@ func (s *Service) Checkout(ctx context.Context, user, tier, price int64, renew b
 		return store.Payment{}, err
 	}
 	if p, e := q.OpenPayment(ctx, a.ID); e == nil {
+		if p.Renewal || p.TierID != t.ID || p.AmountKopecks != price || p.SaveMethod != renew {
+			return store.Payment{}, problem("checkout_terms_conflict", "Есть незавершённый платёж с другими условиями.")
+		}
 		return p, tx.Commit(ctx)
 	} else if !errors.Is(e, pgx.ErrNoRows) {
 		return store.Payment{}, e
