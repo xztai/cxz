@@ -3,12 +3,12 @@ import type { LayoutLoad } from './$types';
 
 export const ssr = false;
 
-type Access =
+export type StudioAccess =
 	| { state: 'ready'; ownerId: string; profile: Profile | null }
 	| { state: 'unauthorized' }
 	| { state: 'error' };
 
-export const load: LayoutLoad = async ({ depends, fetch }): Promise<{ access: Access }> => {
+export const load: LayoutLoad = async ({ depends, fetch }): Promise<{ access: StudioAccess }> => {
 	depends('studio:profile');
 	try {
 		const { ownerId, profile } = await api.ownProfile(fetch);

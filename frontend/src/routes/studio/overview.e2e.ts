@@ -759,3 +759,97 @@ test('Studio keeps write controls hidden until the bootstrap response identifies
 	await retry.click();
 	await expect(main.getByLabel('Отображаемое имя')).toHaveValue(profile.displayName);
 });
+
+test('Studio reuses the initial overview read after verifying its matching account', async ({
+	page
+}) => {
+	const releaseSession = Promise.withResolvers<void>();
+	const sessionStarted = Promise.withResolvers<void>();
+	let firstPageRequests = 0;
+	await page.route('**/api/v1/me', async (route) => {
+		sessionStarted.resolve();
+		await releaseSession.promise;
+		await route.fulfill({ json: { user } });
+	});
+	await page.route('**/api/v1/me/profile', (route) =>
+		route.fulfill({ json: { ownerId: user.id, profile } })
+	);
+	await page.route('**/api/v1/me/tiers', (route) => route.fulfill({ json: { tiers: [tier] } }));
+	await page.route('**/api/v1/me/analytics', (route) => route.fulfill({ json: analytics }));
+	await page.route('**/api/v1/me/posts', (route) => {
+		firstPageRequests++;
+		expect(route.request().headers()['x-expected-user-id']).toBe(user.id);
+		return route.fulfill({ json: { posts: [post('1', publishedAt)], hasMore: false } });
+	});
+
+	const firstPage = page.waitForResponse('**/api/v1/me/posts');
+	try {
+		await page.goto('/studio');
+		await Promise.all([sessionStarted.promise, firstPage]);
+		await expect(page.getByRole('main').getByRole('status')).toHaveText('Загружаем…');
+		expect(firstPageRequests).toBe(1);
+	} finally {
+		releaseSession.resolve();
+	}
+
+	await expect(page.getByRole('link', { name: /Работа 1/ })).toBeVisible();
+	expect(firstPageRequests).toBe(1);
+});
+
+for (const initialUser of [secondUser, null] as const) {
+	test(`Studio discards initial profile data after verifying ${initialUser?.nickname ?? 'a guest'}`, async ({
+		page
+	}) => {
+		const reloadStarted = Promise.withResolvers<void>();
+		const releaseReload = Promise.withResolvers<void>();
+		let reads = 0;
+		await page.route('**/api/v1/me', (route) => route.fulfill({ json: { user: initialUser } }));
+		await page.route('**/api/v1/me/profile', async (route) => {
+			if (++reads === 1) {
+				return route.fulfill({ json: { ownerId: user.id, profile: firstProfile } });
+			}
+			reloadStarted.resolve();
+			await releaseReload.promise;
+			if (initialUser) {
+				return route.fulfill({ json: { ownerId: initialUser.id, profile: secondProfile } });
+			}
+			return route.fulfill({ status: 401, json: { error: { code: 'unauthorized' } } });
+		});
+
+		await page.goto('/studio/profile');
+		const main = page.getByRole('main');
+		const editor = main.getByLabel('Отображаемое имя');
+		try {
+			await reloadStarted.promise;
+			await expect(editor).toHaveCount(0);
+			if (initialUser) {
+				await expect(main.getByRole('status')).toHaveText('Загружаем…');
+			} else {
+				await expect(main.getByRole('link', { name: 'Войти', exact: true })).toBeVisible();
+			}
+		} finally {
+			releaseReload.resolve();
+		}
+		if (initialUser) await expect(editor).toHaveValue(secondProfile.displayName);
+		else await expect(editor).toHaveCount(0);
+	});
+}
+
+test('Studio keeps the initial editor hidden when session verification fails', async ({ page }) => {
+	let verifySession = false;
+	await page.route('**/api/v1/me', (route) =>
+		verifySession ? route.fulfill({ json: { user } }) : route.fulfill({ status: 503, json: {} })
+	);
+	await page.route('**/api/v1/me/profile', (route) =>
+		route.fulfill({ json: { ownerId: user.id, profile: firstProfile } })
+	);
+
+	await page.goto('/studio/profile');
+	const main = page.getByRole('main');
+	const editor = main.getByLabel('Отображаемое имя');
+	await expect(main.getByRole('status')).toHaveText('Не удалось загрузить студию.');
+	await expect(editor).toHaveCount(0);
+	verifySession = true;
+	await main.getByRole('button', { name: 'Повторить' }).click();
+	await expect(editor).toHaveValue(firstProfile.displayName);
+});

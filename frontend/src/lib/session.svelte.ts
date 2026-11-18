@@ -19,7 +19,10 @@ export class Session {
 	#studioRecovery?: { ownerId: string | undefined };
 	#lastStudioRecoveryOwner?: string;
 
-	constructor(private invalidateStudio: () => Promise<void>) {}
+	constructor(
+		private invalidateStudio: () => Promise<void>,
+		private loadedStudioOwner: () => string | undefined
+	) {}
 
 	restoreVerification() {
 		if (this.verification) return;
@@ -77,6 +80,9 @@ export class Session {
 	setUser(user: User | null) {
 		this.#revision++;
 		const changed = this.user?.id !== user?.id;
+		const initialStudioOwner = this.verified ? undefined : this.loadedStudioOwner();
+		const reloadStudio =
+			initialStudioOwner === undefined ? changed : initialStudioOwner !== user?.id;
 		this.user = user;
 		this.verified = true;
 		this.ready = true;
@@ -96,7 +102,7 @@ export class Session {
 			}
 			this.#lastStudioRecoveryOwner = recovery.ownerId;
 		}
-		if (changed || recovery) void this.#reloadStudio();
+		if (reloadStudio || recovery) void this.#reloadStudio();
 	}
 
 	async #reloadStudio() {
@@ -111,7 +117,7 @@ export class Session {
 	}
 
 	recheckStudio(ownerId?: string) {
-		if (ownerId !== undefined && ownerId !== this.user?.id) return;
+		if (this.verified && ownerId !== undefined && ownerId !== this.user?.id) return;
 		if (this.#studioRecovery && this.studioStatus === 'pending') return;
 		// A private request can fail while invalidation is still loading child data.
 		this.#studioRevision++;
