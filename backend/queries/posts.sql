@@ -56,6 +56,9 @@ UPDATE post_media SET state='deleting' WHERE id IN (
 -- name: DeleteStaleMedia :exec
 DELETE FROM post_media WHERE id=$1 AND state='deleting';
 
--- name: MediaObjectReferenced :one
-SELECT (EXISTS(SELECT 1 FROM post_media m WHERE m.object_key=sqlc.arg(key)::text OR m.thumbnail_key=sqlc.arg(key)::text)
- OR EXISTS(SELECT 1 FROM profile_images i WHERE i.object_key=sqlc.arg(key)::text))::boolean AS referenced;
+-- name: ReferencedMediaKeys :many
+SELECT m.object_key FROM post_media m WHERE m.object_key=ANY(sqlc.arg(keys)::text[])
+UNION
+SELECT m.thumbnail_key FROM post_media m WHERE m.thumbnail_key=ANY(sqlc.arg(keys)::text[])
+UNION
+SELECT i.object_key FROM profile_images i WHERE i.object_key=ANY(sqlc.arg(keys)::text[]);

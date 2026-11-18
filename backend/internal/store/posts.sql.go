@@ -290,18 +290,6 @@ func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPosts
 	return items, nil
 }
 
-const mediaObjectReferenced = `-- name: MediaObjectReferenced :one
-SELECT (EXISTS(SELECT 1 FROM post_media m WHERE m.object_key=$1::text OR m.thumbnail_key=$1::text)
- OR EXISTS(SELECT 1 FROM profile_images i WHERE i.object_key=$1::text))::boolean AS referenced
-`
-
-func (q *Queries) MediaObjectReferenced(ctx context.Context, key string) (bool, error) {
-	row := q.db.QueryRow(ctx, mediaObjectReferenced, key)
-	var referenced bool
-	err := row.Scan(&referenced)
-	return referenced, err
-}
-
 const ownPost = `-- name: OwnPost :one
 SELECT id, author_id, title, teaser, body_markdown, minimum_tier_id, published_at, created_at, updated_at FROM posts WHERE id=$1 AND author_id=$2
 `
@@ -391,6 +379,34 @@ func (q *Queries) PublishPost(ctx context.Context, arg PublishPostParams) (int64
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const referencedMediaKeys = `-- name: ReferencedMediaKeys :many
+SELECT m.object_key FROM post_media m WHERE m.object_key=ANY($1::text[])
+UNION
+SELECT m.thumbnail_key FROM post_media m WHERE m.thumbnail_key=ANY($1::text[])
+UNION
+SELECT i.object_key FROM profile_images i WHERE i.object_key=ANY($1::text[])
+`
+
+func (q *Queries) ReferencedMediaKeys(ctx context.Context, keys []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, referencedMediaKeys, keys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var object_key string
+		if err := rows.Scan(&object_key); err != nil {
+			return nil, err
+		}
+		items = append(items, object_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const reservePostMedia = `-- name: ReservePostMedia :one
