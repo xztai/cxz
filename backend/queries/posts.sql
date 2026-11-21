@@ -17,16 +17,29 @@ updated_at=now() WHERE id=$1 AND author_id=$2;
 DELETE FROM posts WHERE id=$1 AND author_id=$2;
 
 -- name: ListOwnPosts :many
-SELECT * FROM posts WHERE author_id=$1 ORDER BY id DESC LIMIT 25 OFFSET $2;
+SELECT p.id,p.title,p.teaser,p.minimum_tier_id,p.published_at,p.updated_at,t.name AS minimum_tier_name
+FROM posts p
+LEFT JOIN subscription_tiers t ON t.id=p.minimum_tier_id AND t.author_id=p.author_id
+WHERE p.author_id=sqlc.arg(author_id)
+ AND (sqlc.arg(status)::text='' OR (p.published_at IS NOT NULL)=(sqlc.arg(status)::text='published'))
+ORDER BY CASE sqlc.arg(status)::text WHEN 'draft' THEN p.updated_at WHEN 'published' THEN p.published_at END DESC,
+ p.id DESC
+LIMIT 25 OFFSET sqlc.arg('offset');
+
+-- name: HasPublishedPost :one
+SELECT EXISTS (SELECT 1 FROM posts WHERE author_id=$1 AND published_at IS NOT NULL);
 
 -- name: ListPublishedPosts :many
-SELECT id,title,teaser,minimum_tier_id,published_at FROM posts
-WHERE author_id=$1 AND published_at IS NOT NULL ORDER BY id DESC LIMIT 25 OFFSET $2;
+SELECT p.id,p.title,p.teaser,p.minimum_tier_id,p.published_at,t.name AS minimum_tier_name
+FROM posts p
+LEFT JOIN subscription_tiers t ON t.id=p.minimum_tier_id AND t.author_id=p.author_id
+WHERE p.author_id=$1 AND p.published_at IS NOT NULL ORDER BY p.id DESC LIMIT 25 OFFSET $2;
 
 -- name: PostAccess :one
-SELECT p.*, u.nickname,
+SELECT p.*, u.nickname, t.name AS minimum_tier_name,
  post_readable(p,sqlc.arg(viewer_id)::bigint)::boolean AS can_read
 FROM posts p JOIN users u ON u.id=p.author_id
+LEFT JOIN subscription_tiers t ON t.id=p.minimum_tier_id AND t.author_id=p.author_id
 WHERE p.id=$1 AND NOT u.blocked AND u.email_verified
  AND (p.published_at IS NOT NULL OR p.author_id=sqlc.arg(viewer_id)::bigint);
 
@@ -56,6 +69,9 @@ UPDATE post_media SET state='deleting' WHERE id IN (
 -- name: DeleteStaleMedia :exec
 DELETE FROM post_media WHERE id=$1 AND state='deleting';
 
--- name: MediaObjectReferenced :one
-SELECT (EXISTS(SELECT 1 FROM post_media m WHERE m.object_key=sqlc.arg(key)::text OR m.thumbnail_key=sqlc.arg(key)::text)
- OR EXISTS(SELECT 1 FROM profile_images i WHERE i.object_key=sqlc.arg(key)::text))::boolean AS referenced;
+-- name: ReferencedMediaKeys :many
+SELECT m.object_key FROM post_media m WHERE m.object_key=ANY(sqlc.arg(keys)::text[])
+UNION
+SELECT m.thumbnail_key FROM post_media m WHERE m.thumbnail_key=ANY(sqlc.arg(keys)::text[])
+UNION
+SELECT i.object_key FROM profile_images i WHERE i.object_key=ANY(sqlc.arg(keys)::text[]);

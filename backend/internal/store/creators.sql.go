@@ -122,7 +122,20 @@ func (q *Queries) DeleteUnusedTier(ctx context.Context, arg DeleteUnusedTierPara
 }
 
 const listCreators = `-- name: ListCreators :many
-SELECT p.user_id, p.display_name, p.description, p.created_at, p.updated_at, u.nickname FROM creator_profiles p JOIN users u ON u.id = p.user_id
+SELECT p.user_id, u.nickname, p.display_name, p.description,
+ COALESCE(avatar.sha256, ''::text) AS avatar_sha256,
+ COALESCE(avatar.content_type, ''::text) AS avatar_content_type,
+ COALESCE(avatar.size_bytes, 0::bigint) AS avatar_size_bytes,
+ COALESCE(avatar.width, 0::integer) AS avatar_width,
+ COALESCE(avatar.height, 0::integer) AS avatar_height,
+ COALESCE(cover.sha256, ''::text) AS cover_sha256,
+ COALESCE(cover.content_type, ''::text) AS cover_content_type,
+ COALESCE(cover.size_bytes, 0::bigint) AS cover_size_bytes,
+ COALESCE(cover.width, 0::integer) AS cover_width,
+ COALESCE(cover.height, 0::integer) AS cover_height
+FROM creator_profiles p JOIN users u ON u.id = p.user_id
+LEFT JOIN profile_images avatar ON avatar.user_id = p.user_id AND avatar.kind = 'avatar'
+LEFT JOIN profile_images cover ON cover.user_id = p.user_id AND cover.kind = 'cover'
 WHERE NOT u.blocked AND u.email_verified
  AND ($3::text = '' OR strpos(lower(p.display_name), lower($3)) > 0
  OR strpos(u.nickname, lower($3)) > 0 OR strpos(lower(p.description), lower($3)) > 0)
@@ -136,12 +149,20 @@ type ListCreatorsParams struct {
 }
 
 type ListCreatorsRow struct {
-	UserID      int64
-	DisplayName string
-	Description string
-	CreatedAt   pgtype.Timestamptz
-	UpdatedAt   pgtype.Timestamptz
-	Nickname    string
+	UserID            int64
+	Nickname          string
+	DisplayName       string
+	Description       string
+	AvatarSha256      string
+	AvatarContentType string
+	AvatarSizeBytes   int64
+	AvatarWidth       int32
+	AvatarHeight      int32
+	CoverSha256       string
+	CoverContentType  string
+	CoverSizeBytes    int64
+	CoverWidth        int32
+	CoverHeight       int32
 }
 
 func (q *Queries) ListCreators(ctx context.Context, arg ListCreatorsParams) ([]ListCreatorsRow, error) {
@@ -155,11 +176,19 @@ func (q *Queries) ListCreators(ctx context.Context, arg ListCreatorsParams) ([]L
 		var i ListCreatorsRow
 		if err := rows.Scan(
 			&i.UserID,
+			&i.Nickname,
 			&i.DisplayName,
 			&i.Description,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Nickname,
+			&i.AvatarSha256,
+			&i.AvatarContentType,
+			&i.AvatarSizeBytes,
+			&i.AvatarWidth,
+			&i.AvatarHeight,
+			&i.CoverSha256,
+			&i.CoverContentType,
+			&i.CoverSizeBytes,
+			&i.CoverWidth,
+			&i.CoverHeight,
 		); err != nil {
 			return nil, err
 		}

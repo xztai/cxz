@@ -321,7 +321,11 @@ func (s *Server) clientIP(r *http.Request) string {
 	return ip
 }
 func (s *Server) limit(ctx context.Context, key string, maxHits int32) error {
-	hits, err := s.q.RateLimit(ctx, auth.Digest(key))
+	return limit(ctx, s.q, key, maxHits)
+}
+
+func limit(ctx context.Context, q *store.Queries, key string, maxHits int32) error {
+	hits, err := q.RateLimit(ctx, auth.Digest(key))
 	if err != nil {
 		return err
 	}

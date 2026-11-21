@@ -222,16 +222,20 @@ paths:
   /me/profile:
     get:
       operationId: ownProfile
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200':
-          description: Own profile; null until first save
+          description: Session owner and own profile, which is null until first save
           content:
             application/json:
               schema:
                 type: object
-                required: [profile]
+                required: [ownerId, profile]
                 properties:
+                  ownerId: {type: string, pattern: '^[1-9][0-9]*$'}
                   profile:
                     oneOf:
                       - {$ref: '#/components/schemas/Profile'}
@@ -240,6 +244,8 @@ paths:
     put:
       operationId: saveProfile
       description: Creates public profile and atomically updates the account nickname. Owner comes from the session.
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody:
         required: true
@@ -247,6 +253,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/ProfileInput'}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Profile'}
         default: {$ref: '#/components/responses/Error'}
   /me/profile/images/{kind}:
@@ -255,6 +262,8 @@ paths:
     put:
       operationId: uploadProfileImage
       description: Raw image bytes, at most 5 MiB and 16 million pixels, each side at most 8192. Actual type must match Content-Type. Re-encoded before storage.
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody:
         required: true
@@ -263,12 +272,16 @@ paths:
           image/jpeg: {schema: {type: string, format: binary}}
           image/webp: {schema: {type: string, format: binary}}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Profile'}
         default: {$ref: '#/components/responses/Error'}
     delete:
       operationId: removeProfileImage
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Profile'}
         default: {$ref: '#/components/responses/Error'}
   /authors:
@@ -322,13 +335,18 @@ paths:
   /me/tiers:
     get:
       operationId: ownTiers
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Tiers'}
         default: {$ref: '#/components/responses/Error'}
     post:
       operationId: createTier
       description: New tier is always placed above all existing tiers, including archived tiers. Maximum 50 active tiers.
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody:
         required: true
@@ -336,6 +354,7 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/TierInput'}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '201': {$ref: '#/components/responses/Tier'}
         default: {$ref: '#/components/responses/Error'}
   /me/tiers/{id}:
@@ -343,6 +362,8 @@ paths:
       - {name: id, in: path, required: true, schema: {type: string}}
     put:
       operationId: updateTier
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody:
         required: true
@@ -350,28 +371,39 @@ paths:
           application/json:
             schema: {$ref: '#/components/schemas/TierInput'}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Tier'}
         default: {$ref: '#/components/responses/Error'}
     delete:
       operationId: deleteTier
       description: Unused tiers are deleted; used tiers are archived and retain their position and access hierarchy.
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Message'}
         default: {$ref: '#/components/responses/Error'}
   /me/tiers/{id}/archive:
     post:
       operationId: archiveTier
       parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
         - {name: id, in: path, required: true, schema: {type: string}}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Message'}
         default: {$ref: '#/components/responses/Error'}
   /me/tiers/order:
     put:
       operationId: reorderTiers
-      description: Complete list of active IDs, highest first. Positions of used tiers are immutable; archived positions are reserved.
+      description: >
+        Send every active tier ID exactly once, highest first. The server assigns the
+        existing active positions in descending order. Used tiers keep their positions,
+        and archived positions are reserved.
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody:
         required: true
@@ -384,58 +416,95 @@ paths:
               properties:
                 ids: {type: array, maxItems: 50, items: {type: string}}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Tiers'}
+        '409':
+          description: tier_order_locked if a used tier would change position, or profile_required if the creator profile is missing.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - {$ref: '#/components/schemas/Error'}
+                  - properties:
+                      error:
+                        properties:
+                          code: {type: string, enum: [tier_order_locked, profile_required]}
         default: {$ref: '#/components/responses/Error'}
   /me/posts:
     get:
       operationId: ownPosts
+      description: Filters by status before applying the offset. Drafts are ordered by last update and published posts by publication date, newest first, with descending ID as a tie-breaker. Omitting status lists all posts by descending ID.
       security: [{session: []}]
-      parameters: [{$ref: '#/components/parameters/PostOffset'}]
+      parameters:
+        - {$ref: '#/components/parameters/PostOffset'}
+        - {$ref: '#/components/parameters/ExpectedUserId'}
+        - in: query
+          name: status
+          schema: {type: string, enum: [draft, published]}
       responses:
-        '200': {$ref: '#/components/responses/Posts'}
+        '412': {$ref: '#/components/responses/AccountChanged'}
+        '200': {$ref: '#/components/responses/OwnPosts'}
         default: {$ref: '#/components/responses/Error'}
     post:
       operationId: createPost
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody: {$ref: '#/components/requestBodies/Post'}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '201': {$ref: '#/components/responses/Post'}
         default: {$ref: '#/components/responses/Error'}
   /me/posts/{id}:
     parameters: [{$ref: '#/components/parameters/PostID'}]
     get:
       operationId: ownPost
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Post'}
         default: {$ref: '#/components/responses/Error'}
     put:
       operationId: updatePost
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       requestBody: {$ref: '#/components/requestBodies/Post'}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Post'}
         default: {$ref: '#/components/responses/Error'}
     delete:
       operationId: deletePost
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Message'}
         default: {$ref: '#/components/responses/Error'}
   /me/posts/{id}/publish:
     parameters: [{$ref: '#/components/parameters/PostID'}]
     post:
       operationId: publishPost
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Post'}
         default: {$ref: '#/components/responses/Error'}
   /me/posts/{id}/unpublish:
     parameters: [{$ref: '#/components/parameters/PostID'}]
     post:
       operationId: unpublishPost
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Post'}
         default: {$ref: '#/components/responses/Error'}
   /me/posts/{id}/media:
@@ -450,6 +519,7 @@ paths:
         Failed uploads expire after one hour. No public S3 URLs are issued.
       security: [{session: [], csrf: []}]
       parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
         - {in: query, name: kind, required: true, schema: {type: string, enum: [image, audio, video, attachment]}}
         - {in: query, name: filename, required: true, schema: {type: string, minLength: 1, maxLength: 200}}
       requestBody:
@@ -458,6 +528,7 @@ paths:
           application/octet-stream:
             schema: {type: string, format: binary}
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '201':
           description: Ready file attached to the post
           content:
@@ -473,14 +544,17 @@ paths:
     parameters: [{$ref: '#/components/parameters/PostID'}, {$ref: '#/components/parameters/MediaID'}]
     delete:
       operationId: detachPostMedia
+      parameters:
+        - {$ref: '#/components/parameters/ExpectedUserId'}
       security: [{session: [], csrf: []}]
       responses:
+        '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/Message'}
         default: {$ref: '#/components/responses/Error'}
   /authors/{nickname}/posts:
     get:
       operationId: authorPosts
-      description: Published titles and explicit public teasers only; never contains body or media.
+      description: Published summaries with titles, explicit public teasers and minimum tier names; never contains body or media.
       parameters:
         - {in: path, name: nickname, required: true, schema: {type: string}}
         - {$ref: '#/components/parameters/PostOffset'}
@@ -530,11 +604,48 @@ paths:
       "post":
         {
           "operationId": "checkout",
+          "description": "Confirm the current tier price in kopecks. The server checks it against the stored price before creating a payment or considering reuse. It returns an open payment only for a manual checkout with the same tier, amount and original auto-renew consent.",
           "security": [{ "session": [], "csrf": [] }],
           "responses":
             {
               "default": { "$ref": "#/components/responses/Error" },
               "202": { "$ref": "#/components/responses/Payment" },
+              "409":
+                {
+                  "description": "price_changed if the tier price differs from the confirmed price, checkout_terms_conflict if an open payment is an automatic renewal or has different confirmed terms, own_subscription for the subscriber's own tier, or subscription_active if the subscription is already paid.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "allOf":
+                                [
+                                  { "$ref": "#/components/schemas/Error" },
+                                  { "properties": { "error": { "properties": { "code": { "type": "string", "enum": ["price_changed", "checkout_terms_conflict", "own_subscription", "subscription_active"] } } } } },
+                                ],
+                            },
+                        },
+                    },
+                },
+              "422":
+                {
+                  "description": "invalid_price if the confirmed price matches the tier price but is below 100 kopecks, or validation if the request is invalid.",
+                  "content":
+                    {
+                      "application/json":
+                        {
+                          "schema":
+                            {
+                              "allOf":
+                                [
+                                  { "$ref": "#/components/schemas/Error" },
+                                  { "properties": { "error": { "properties": { "code": { "type": "string", "enum": ["invalid_price", "validation"] } } } } },
+                                ],
+                            },
+                        },
+                    },
+                },
             },
           "requestBody":
             {
@@ -836,6 +947,7 @@ paths:
         -
           "session": []
       "responses":
+        '412': {$ref: '#/components/responses/AccountChanged'}
         "200":
           "description": "Server-authorized response, private no-store"
           "content":
@@ -846,6 +958,7 @@ paths:
           "$ref": "#/components/responses/Error"
       "description": "Owner only. Inclusive UTC dates, 1–366 days. Confirmed succeeded payments by completed_at, no provider IDs or PII. Active subscriptions are a current snapshot including canceled renewals with paid access."
       "parameters":
+        - {$ref: '#/components/parameters/ExpectedUserId'}
         -
           "name": "from"
           "in": "query"
@@ -1035,6 +1148,11 @@ components:
     session: { type: apiKey, in: cookie, name: etheyl_session }
     csrf: { type: apiKey, in: header, name: X-CSRF-Token }
   parameters:
+    ExpectedUserId:
+      in: header
+      name: X-Expected-User-ID
+      description: Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition.
+      schema: {type: string, pattern: '^[1-9][0-9]*$'}
     PostID: {in: path, name: id, required: true, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
     MediaID: {in: path, name: mediaID, required: true, schema: {type: string, pattern: '^[1-9][0-9]*$'}}
     PostOffset: {in: query, name: offset, schema: {type: integer, minimum: 0, maximum: 100000, default: 0}}
@@ -1320,9 +1438,23 @@ components:
         teaser: {type: string}
         minimumTierId: {type: [string, 'null']}
         publishedAt: {type: [string, 'null'], format: date-time}
-    Post:
+    PostListItem:
       allOf:
         - {$ref: '#/components/schemas/PostSummary'}
+        - type: object
+          required: [minimumTierName]
+          properties:
+            minimumTierName: {type: [string, 'null'], description: 'Name of the minimum subscription tier, including archived tiers. Null for public posts.'}
+    OwnPostSummary:
+      allOf:
+        - {$ref: '#/components/schemas/PostListItem'}
+        - type: object
+          required: [updatedAt]
+          properties:
+            updatedAt: {type: string, format: date-time}
+    Post:
+      allOf:
+        - {$ref: '#/components/schemas/PostListItem'}
         - type: object
           required: [canRead]
           properties:
@@ -1446,9 +1578,23 @@ components:
           type: object
           required: [code, message]
           properties:
-            code: { type: string }
+            code:
+              type: string
+              description: Machine-readable error code. Operations document the codes applicable to their responses.
+              examples: [account_changed, tier_order_locked, price_changed, invalid_price]
             message: { type: string }
   responses:
+    AccountChanged:
+      description: The expected Studio account did not match the authenticated session.
+      content:
+        application/json:
+          schema:
+            allOf:
+              - {$ref: '#/components/schemas/Error'}
+              - properties:
+                  error:
+                    properties:
+                      code: {type: string, const: account_changed}
     Payment:
       {
         "description": "Test shop only; authoritative server verification",
@@ -1483,8 +1629,21 @@ components:
             type: object
             required: [posts, hasMore]
             properties:
-              posts: {type: array, items: {$ref: '#/components/schemas/PostSummary'}}
+              posts: {type: array, items: {$ref: '#/components/schemas/PostListItem'}}
               hasMore: {type: boolean}
+    OwnPosts:
+      description: Up to 24 summaries with publication progress for the signed-in author
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [posts, hasMore, hasPublishedPost]
+            properties:
+              posts: {type: array, items: {$ref: '#/components/schemas/OwnPostSummary'}}
+              hasMore: {type: boolean}
+              hasPublishedPost:
+                type: boolean
+                description: Whether the signed-in author currently has any published post across all pages, including tier-gated posts.
     MediaBytes:
       description: Authorized original or thumbnail, no-store
       headers:
@@ -1498,13 +1657,14 @@ components:
         '*/*':
           schema: {type: string, format: binary}
     Profile:
-      description: Saved public profile
+      description: Session owner and saved profile
       content:
         application/json:
           schema:
             type: object
-            required: [profile]
+            required: [ownerId, profile]
             properties:
+              ownerId: {type: string, pattern: '^[1-9][0-9]*$'}
               profile: {$ref: '#/components/schemas/Profile'}
     Tier:
       description: Saved tier
@@ -1539,7 +1699,12 @@ components:
             properties:
               status: { type: string, const: ok }
     Error:
-      description: '400 invalid/expired token, 401 credentials, 403 CSRF/unverified/forbidden, 409 email/nickname already registered, 415 content type, 422 validation/unchanged password, 429 rate limit, 500 internal, 503 busy/unavailable'
+      description: >
+        API error. Examples include invalid or expired tokens (400), credentials (401),
+        CSRF or forbidden requests (403), conflicts such as email_exists, nickname_exists,
+        tier_order_locked or price_changed (409), unsupported content type (415),
+        validation, password_unchanged or invalid_price (422), rate limits (429),
+        internal errors (500), and temporary unavailability (503).
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }

@@ -233,7 +233,7 @@ func (s *Server) createComment(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	defer socialRollback(tx)
-	if err = s.limit(r.Context(), "comment:"+strconv.FormatInt(u.ID, 10), 20); err != nil {
+	if err = limit(r.Context(), q, "comment:"+strconv.FormatInt(u.ID, 10), 20); err != nil {
 		return err
 	}
 	c, err := q.CreateComment(r.Context(), store.CreateCommentParams{PostID: id, UserID: u.ID, Body: in.Body})

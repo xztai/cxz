@@ -171,34 +171,61 @@ func (q *Queries) GetPostMedia(ctx context.Context, id int64) (PostMedium, error
 	return i, err
 }
 
+const hasPublishedPost = `-- name: HasPublishedPost :one
+SELECT EXISTS (SELECT 1 FROM posts WHERE author_id=$1 AND published_at IS NOT NULL)
+`
+
+func (q *Queries) HasPublishedPost(ctx context.Context, authorID int64) (bool, error) {
+	row := q.db.QueryRow(ctx, hasPublishedPost, authorID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const listOwnPosts = `-- name: ListOwnPosts :many
-SELECT id, author_id, title, teaser, body_markdown, minimum_tier_id, published_at, created_at, updated_at FROM posts WHERE author_id=$1 ORDER BY id DESC LIMIT 25 OFFSET $2
+SELECT p.id,p.title,p.teaser,p.minimum_tier_id,p.published_at,p.updated_at,t.name AS minimum_tier_name
+FROM posts p
+LEFT JOIN subscription_tiers t ON t.id=p.minimum_tier_id AND t.author_id=p.author_id
+WHERE p.author_id=$1
+ AND ($2::text='' OR (p.published_at IS NOT NULL)=($2::text='published'))
+ORDER BY CASE $2::text WHEN 'draft' THEN p.updated_at WHEN 'published' THEN p.published_at END DESC,
+ p.id DESC
+LIMIT 25 OFFSET $3
 `
 
 type ListOwnPostsParams struct {
 	AuthorID int64
+	Status   string
 	Offset   int32
 }
 
-func (q *Queries) ListOwnPosts(ctx context.Context, arg ListOwnPostsParams) ([]Post, error) {
-	rows, err := q.db.Query(ctx, listOwnPosts, arg.AuthorID, arg.Offset)
+type ListOwnPostsRow struct {
+	ID              int64
+	Title           string
+	Teaser          string
+	MinimumTierID   pgtype.Int8
+	PublishedAt     pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
+	MinimumTierName pgtype.Text
+}
+
+func (q *Queries) ListOwnPosts(ctx context.Context, arg ListOwnPostsParams) ([]ListOwnPostsRow, error) {
+	rows, err := q.db.Query(ctx, listOwnPosts, arg.AuthorID, arg.Status, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Post{}
+	items := []ListOwnPostsRow{}
 	for rows.Next() {
-		var i Post
+		var i ListOwnPostsRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.AuthorID,
 			&i.Title,
 			&i.Teaser,
-			&i.BodyMarkdown,
 			&i.MinimumTierID,
 			&i.PublishedAt,
-			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.MinimumTierName,
 		); err != nil {
 			return nil, err
 		}
@@ -247,8 +274,10 @@ func (q *Queries) ListPostMedia(ctx context.Context, postID pgtype.Int8) ([]Post
 }
 
 const listPublishedPosts = `-- name: ListPublishedPosts :many
-SELECT id,title,teaser,minimum_tier_id,published_at FROM posts
-WHERE author_id=$1 AND published_at IS NOT NULL ORDER BY id DESC LIMIT 25 OFFSET $2
+SELECT p.id,p.title,p.teaser,p.minimum_tier_id,p.published_at,t.name AS minimum_tier_name
+FROM posts p
+LEFT JOIN subscription_tiers t ON t.id=p.minimum_tier_id AND t.author_id=p.author_id
+WHERE p.author_id=$1 AND p.published_at IS NOT NULL ORDER BY p.id DESC LIMIT 25 OFFSET $2
 `
 
 type ListPublishedPostsParams struct {
@@ -257,11 +286,12 @@ type ListPublishedPostsParams struct {
 }
 
 type ListPublishedPostsRow struct {
-	ID            int64
-	Title         string
-	Teaser        string
-	MinimumTierID pgtype.Int8
-	PublishedAt   pgtype.Timestamptz
+	ID              int64
+	Title           string
+	Teaser          string
+	MinimumTierID   pgtype.Int8
+	PublishedAt     pgtype.Timestamptz
+	MinimumTierName pgtype.Text
 }
 
 func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPostsParams) ([]ListPublishedPostsRow, error) {
@@ -279,6 +309,7 @@ func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPosts
 			&i.Teaser,
 			&i.MinimumTierID,
 			&i.PublishedAt,
+			&i.MinimumTierName,
 		); err != nil {
 			return nil, err
 		}
@@ -288,18 +319,6 @@ func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPosts
 		return nil, err
 	}
 	return items, nil
-}
-
-const mediaObjectReferenced = `-- name: MediaObjectReferenced :one
-SELECT (EXISTS(SELECT 1 FROM post_media m WHERE m.object_key=$1::text OR m.thumbnail_key=$1::text)
- OR EXISTS(SELECT 1 FROM profile_images i WHERE i.object_key=$1::text))::boolean AS referenced
-`
-
-func (q *Queries) MediaObjectReferenced(ctx context.Context, key string) (bool, error) {
-	row := q.db.QueryRow(ctx, mediaObjectReferenced, key)
-	var referenced bool
-	err := row.Scan(&referenced)
-	return referenced, err
 }
 
 const ownPost = `-- name: OwnPost :one
@@ -329,9 +348,10 @@ func (q *Queries) OwnPost(ctx context.Context, arg OwnPostParams) (Post, error) 
 }
 
 const postAccess = `-- name: PostAccess :one
-SELECT p.id, p.author_id, p.title, p.teaser, p.body_markdown, p.minimum_tier_id, p.published_at, p.created_at, p.updated_at, u.nickname,
+SELECT p.id, p.author_id, p.title, p.teaser, p.body_markdown, p.minimum_tier_id, p.published_at, p.created_at, p.updated_at, u.nickname, t.name AS minimum_tier_name,
  post_readable(p,$2::bigint)::boolean AS can_read
 FROM posts p JOIN users u ON u.id=p.author_id
+LEFT JOIN subscription_tiers t ON t.id=p.minimum_tier_id AND t.author_id=p.author_id
 WHERE p.id=$1 AND NOT u.blocked AND u.email_verified
  AND (p.published_at IS NOT NULL OR p.author_id=$2::bigint)
 `
@@ -342,17 +362,18 @@ type PostAccessParams struct {
 }
 
 type PostAccessRow struct {
-	ID            int64
-	AuthorID      int64
-	Title         string
-	Teaser        string
-	BodyMarkdown  string
-	MinimumTierID pgtype.Int8
-	PublishedAt   pgtype.Timestamptz
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
-	Nickname      string
-	CanRead       bool
+	ID              int64
+	AuthorID        int64
+	Title           string
+	Teaser          string
+	BodyMarkdown    string
+	MinimumTierID   pgtype.Int8
+	PublishedAt     pgtype.Timestamptz
+	CreatedAt       pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
+	Nickname        string
+	MinimumTierName pgtype.Text
+	CanRead         bool
 }
 
 func (q *Queries) PostAccess(ctx context.Context, arg PostAccessParams) (PostAccessRow, error) {
@@ -369,6 +390,7 @@ func (q *Queries) PostAccess(ctx context.Context, arg PostAccessParams) (PostAcc
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Nickname,
+		&i.MinimumTierName,
 		&i.CanRead,
 	)
 	return i, err
@@ -391,6 +413,34 @@ func (q *Queries) PublishPost(ctx context.Context, arg PublishPostParams) (int64
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const referencedMediaKeys = `-- name: ReferencedMediaKeys :many
+SELECT m.object_key FROM post_media m WHERE m.object_key=ANY($1::text[])
+UNION
+SELECT m.thumbnail_key FROM post_media m WHERE m.thumbnail_key=ANY($1::text[])
+UNION
+SELECT i.object_key FROM profile_images i WHERE i.object_key=ANY($1::text[])
+`
+
+func (q *Queries) ReferencedMediaKeys(ctx context.Context, keys []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, referencedMediaKeys, keys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var object_key string
+		if err := rows.Scan(&object_key); err != nil {
+			return nil, err
+		}
+		items = append(items, object_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const reservePostMedia = `-- name: ReservePostMedia :one

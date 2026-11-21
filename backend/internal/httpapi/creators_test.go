@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/v2"
+	"errors"
 	"fmt"
 	"image"
 	"image/png"
@@ -18,6 +19,8 @@ import (
 	"etheyl.local/backend/internal/auth"
 	"etheyl.local/backend/internal/media"
 	"etheyl.local/backend/internal/store"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type memoryImages struct {
@@ -168,6 +171,25 @@ func mustID(t *testing.T, id string) int64 {
 	}
 	return v
 }
+func uploadTestProfileImage(t *testing.T, h *harness, body []byte, kind, mime string, csrf bool) int {
+	t.Helper()
+	r, err := http.NewRequestWithContext(t.Context(), "PUT", h.url+"/api/v1/me/profile/images/"+kind, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", mime)
+	if csrf {
+		r.Header.Set("Origin", "http://example.test")
+		r.Header.Set("X-CSRF-Token", h.csrf)
+	}
+	resp, err := h.client.Do(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	return resp.StatusCode
+}
+
 func TestIntegrationProfileImages(t *testing.T) {
 	h := setup(t)
 	newTestSession(t, h, "painter")
@@ -178,35 +200,18 @@ func TestIntegrationProfileImages(t *testing.T) {
 	if err := png.Encode(&data, image.NewNRGBA(image.Rect(0, 0, 12, 6))); err != nil {
 		t.Fatal(err)
 	}
-	upload := func(body []byte, kind, mime string, csrf bool) int {
-		t.Helper()
-		r, err := http.NewRequestWithContext(t.Context(), "PUT", h.url+"/api/v1/me/profile/images/"+kind, bytes.NewReader(body))
-		if err != nil {
-			t.Fatal(err)
-		}
-		r.Header.Set("Content-Type", mime)
-		if csrf {
-			r.Header.Set("Origin", "http://example.test")
-			r.Header.Set("X-CSRF-Token", h.csrf)
-		}
-		resp, err := h.client.Do(r)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_ = resp.Body.Close()
-		return resp.StatusCode
-	}
-	if got := upload(data.Bytes(), "avatar", "image/png", false); got != 403 {
+
+	if got := uploadTestProfileImage(t, h, data.Bytes(), "avatar", "image/png", false); got != 403 {
 		t.Fatal(got)
 	}
-	if got := upload([]byte("bad"), "avatar", "image/png", true); got != 422 {
+	if got := uploadTestProfileImage(t, h, []byte("bad"), "avatar", "image/png", true); got != 422 {
 		t.Fatal(got)
 	}
-	if got := upload(data.Bytes(), "avatar", "image/jpeg", true); got != 422 {
+	if got := uploadTestProfileImage(t, h, data.Bytes(), "avatar", "image/jpeg", true); got != 422 {
 		t.Fatal(got)
 	}
 	for range 2 {
-		if got := upload(data.Bytes(), "avatar", "image/png", true); got != 200 {
+		if got := uploadTestProfileImage(t, h, data.Bytes(), "avatar", "image/png", true); got != 200 {
 			t.Fatal(got)
 		}
 	}
@@ -219,7 +224,7 @@ func TestIntegrationProfileImages(t *testing.T) {
 	}
 	h.expect("GET", "/authors/painter/images/avatar", "", 200)
 	newTestSession(t, h, "intruder")
-	if got := upload(data.Bytes(), "cover", "image/png", true); got != 409 {
+	if got := uploadTestProfileImage(t, h, data.Bytes(), "cover", "image/png", true); got != 409 {
 		t.Fatal(got)
 	}
 	h.expect("PUT", "/me/profile", `{"nickname":"intruder","displayName":"Другой","description":""}`, 200)
@@ -230,6 +235,119 @@ func TestIntegrationProfileImages(t *testing.T) {
 	}
 	h.expect("GET", "/authors/painter", "", 404)
 	h.expect("GET", "/authors/painter/images/avatar", "", 404)
+}
+
+type lostCommitAcknowledgment struct {
+	pgx.Tx
+	err error
+}
+
+func (tx lostCommitAcknowledgment) Commit(ctx context.Context) error {
+	if err := tx.Tx.Commit(ctx); err != nil {
+		return err
+	}
+	return tx.err
+}
+
+func TestIntegrationProfileImagePersistence(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		invalidWidth bool
+	}{
+		{name: "commit acknowledgment lost"},
+		{name: "metadata rejected", invalidWidth: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			h := setup(t)
+			newTestSession(t, h, "painter")
+			h.expect("PUT", "/me/profile", `{"nickname":"painter","displayName":"Художник","description":""}`, 200)
+			objects := &memoryImages{objects: make(map[string][]byte)}
+			h.server.images = objects
+
+			pngBytes := func(width int) []byte {
+				t.Helper()
+				var data bytes.Buffer
+				if err := png.Encode(&data, image.NewNRGBA(image.Rect(0, 0, width, 6))); err != nil {
+					t.Fatal(err)
+				}
+				return data.Bytes()
+			}
+			if got := uploadTestProfileImage(t, h, pngBytes(12), "avatar", "image/png", true); got != http.StatusOK {
+				t.Fatalf("seed avatar: status %d", got)
+			}
+			publicAvatar := "/authors/painter/images/avatar"
+			original := h.expect("GET", publicAvatar, "", 200)
+
+			req, err := http.NewRequestWithContext(ctx, "PUT", h.url+"/api/v1/me/profile/images/avatar", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, cookie := range h.client.Jar.Cookies(req.URL) {
+				req.AddCookie(cookie)
+			}
+			tx, q, id, err := h.server.creatorTx(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = tx.Rollback(ctx) }()
+			old, err := q.ProfileImages(ctx, id)
+			if err != nil || len(old) != 1 {
+				t.Fatalf("look up seeded avatar: got %d images, err %v", len(old), err)
+			}
+
+			replacement, err := media.Validate(bytes.NewReader(pngBytes(16)), "image/png")
+			if err != nil {
+				t.Fatal(err)
+			}
+			key := fmt.Sprintf("profiles/%d/avatar/test-replacement", id)
+			if err := objects.Put(ctx, key, replacement); err != nil {
+				t.Fatal(err)
+			}
+			params := store.SaveProfileImageParams{
+				UserID: id, Kind: "avatar", ObjectKey: key, ContentType: replacement.ContentType,
+				SizeBytes: int64(len(replacement.Data)), Width: int32(replacement.Width),
+				Height: int32(replacement.Height), Sha256: replacement.SHA256,
+			}
+			if tc.invalidWidth {
+				params.Width = 0
+			}
+			lostAck := errors.New("commit acknowledgment lost")
+			err = h.server.saveUploadedProfileImage(ctx, lostCommitAcknowledgment{Tx: tx, err: lostAck}, params, old)
+
+			expectedKey, expectedData, expectedCount := key, string(replacement.Data), 2
+			if tc.invalidWidth {
+				pgErr, ok := errors.AsType[*pgconn.PgError](err)
+				if !ok || pgErr.ConstraintName != "profile_images_width_check" {
+					t.Fatalf("expected width constraint violation, got %v", err)
+				}
+				if err := tx.Rollback(ctx); err != nil {
+					t.Fatal(err)
+				}
+				expectedKey, expectedData, expectedCount = old[0].ObjectKey, original, 1
+			} else if !errors.Is(err, lostAck) {
+				t.Fatalf("expected lost commit acknowledgment, got %v", err)
+			}
+
+			profileImage, err := store.New(h.pool).ProfileImage(ctx, store.ProfileImageParams{Nickname: "painter", Kind: "avatar"})
+			if err != nil {
+				t.Fatalf("look up persisted avatar: %v", err)
+			}
+			if profileImage.ObjectKey != expectedKey {
+				t.Fatal("persisted avatar has the wrong object key")
+			}
+			objects.mu.Lock()
+			_, oldExists := objects.objects[old[0].ObjectKey]
+			count := len(objects.objects)
+			objects.mu.Unlock()
+			if !oldExists || count != expectedCount {
+				t.Fatalf("unexpected stored avatars: old exists %t, object count %d (want %d)", oldExists, count, expectedCount)
+			}
+			if got := h.expect("GET", publicAvatar, "", 200); got != expectedData {
+				t.Fatal("public avatar did not return the expected bytes")
+			}
+		})
+	}
 }
 
 func TestIntegrationCreatorUnicodeLimits(t *testing.T) {

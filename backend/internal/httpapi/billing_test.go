@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -24,6 +25,7 @@ type fakeYooKassa struct {
 	payments      map[string]billing.RemotePayment
 	bodies        map[string]string
 	createCalls   int
+	getCalls      int
 	loseResponse  bool
 	failGet       bool
 	renewalStatus string
@@ -65,6 +67,7 @@ func (f *fakeYooKassa) Create(_ context.Context, key, body string) (billing.Remo
 func (f *fakeYooKassa) Get(_ context.Context, id string) (billing.RemotePayment, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.getCalls++
 	if f.failGet {
 		return billing.RemotePayment{}, billing.ErrProvider
 	}
@@ -84,6 +87,12 @@ func (f *fakeYooKassa) succeed(id string) {
 	f.payments[id] = p
 }
 func (f *fakeYooKassa) count() int { f.mu.Lock(); defer f.mu.Unlock(); return len(f.payments) }
+
+func (f *fakeYooKassa) calls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.createCalls + f.getCalls
+}
 
 type billingFixture struct {
 	h         *harness
@@ -142,6 +151,154 @@ func (f *billingFixture) due(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+func (f *billingFixture) openCheckout(t *testing.T) (store.Payment, store.BillingAgreement) {
+	t.Helper()
+	agreementID := mustID(t, f.payment.AgreementID)
+	payment, err := f.h.server.q.OpenPayment(t.Context(), agreementID)
+	if err != nil {
+		t.Fatal("load open payment", err)
+	}
+	agreement, err := f.h.server.q.PaymentOwner(t.Context(), payment.ID)
+	if err != nil {
+		t.Fatal("load agreement terms", err)
+	}
+	return payment, agreement
+}
+
+func assertCheckoutResponse(t *testing.T, status int, raw, paymentID, code string) {
+	t.Helper()
+	wantStatus := http.StatusAccepted
+	if code != "" {
+		wantStatus = http.StatusConflict
+	}
+	if status != wantStatus {
+		t.Fatalf("checkout returned status %d, want %d", status, wantStatus)
+	}
+	var result struct {
+		Payment jsontext.Value `json:"payment"`
+		Error   struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		t.Fatal("invalid checkout response JSON")
+	}
+	if code != "" {
+		if result.Error.Code != code || result.Payment != nil {
+			t.Errorf("checkout conflict code = %q, want %q, payment present = %t", result.Error.Code, code, result.Payment != nil)
+		}
+		return
+	}
+	var payment Payment
+	if err := json.Unmarshal(result.Payment, &payment); err != nil || payment.ID != paymentID {
+		t.Error("checkout did not return the original payment")
+	}
+}
+
+func (f *billingFixture) assertCheckoutUnchanged(t *testing.T, before store.Payment, agreementBefore store.BillingAgreement, calls int) {
+	t.Helper()
+	var count int
+	err := f.h.pool.QueryRow(t.Context(), `
+		SELECT count(*) FROM payments WHERE agreement_id = $1 AND status IN ('queued', 'pending', 'review')`,
+		before.AgreementID).Scan(&count)
+	if err != nil || count != 1 {
+		t.Fatalf("open payment count = %d, want 1, query error = %v", count, err)
+	}
+	after, agreementAfter := f.openCheckout(t)
+	if after != before || agreementAfter != agreementBefore {
+		t.Error("checkout changed the persisted payment or agreement terms")
+	}
+	if f.provider.calls() != calls {
+		t.Error("checkout contacted the payment provider")
+	}
+}
+
+func TestIntegrationBillingCheckoutReplayTerms(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		openStatus  string
+		tierChanged bool
+		openRenew   bool
+		renew       bool
+		livePrice   int64
+		price       int64
+		automatic   bool
+		code        string
+	}{
+		{name: "identical queued", openStatus: "queued", price: 10000},
+		{name: "identical pending", openStatus: "pending", price: 10000},
+		{name: "identical review", openStatus: "review", price: 10000, openRenew: true, renew: true},
+		{name: "same price different tier", openStatus: "pending", tierChanged: true, price: 10000, code: "checkout_terms_conflict"},
+		{name: "grant consent", openStatus: "queued", renew: true, price: 10000, code: "checkout_terms_conflict"},
+		{name: "withdraw consent", openStatus: "review", openRenew: true, price: 10000, code: "checkout_terms_conflict"},
+		{name: "changed price confirmed", openStatus: "queued", livePrice: 15000, price: 15000, code: "checkout_terms_conflict"},
+		{name: "obsolete price rejected first", openStatus: "queued", livePrice: 15000, price: 10000, code: "price_changed"},
+		{name: "automatic renewal", openStatus: "queued", openRenew: true, renew: true, price: 10000, automatic: true, code: "checkout_terms_conflict"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := billingHarness(t, tc.openRenew)
+			if tc.openStatus == "pending" || tc.openStatus == "review" {
+				f.process(t)
+			}
+			if tc.openStatus == "review" {
+				if _, err := f.h.pool.Exec(t.Context(), "UPDATE payments SET status = 'review' WHERE id = $1", f.payment.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.automatic {
+				f.paid(t)
+				f.due(t)
+				if err := f.svc.Schedule(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			tier := f.low.ID
+			if tc.tierChanged {
+				tier = f.high.ID
+				tc.livePrice = tc.price
+			}
+			if tc.livePrice != 0 {
+				if _, err := f.h.pool.Exec(t.Context(), "UPDATE subscription_tiers SET price_kopecks = $1 WHERE id = $2", tc.livePrice, mustID(t, tier)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			before, agreement := f.openCheckout(t)
+			if before.Status != tc.openStatus || before.Renewal != tc.automatic || before.SaveMethod != tc.openRenew {
+				t.Fatal("open payment fixture has unexpected status, charge type or consent")
+			}
+			calls := f.provider.calls()
+			body := fmt.Sprintf(`{"tierId":%q,"priceKopecks":%d,"autoRenew":%t}`, tier, tc.price, tc.renew)
+			status, raw, _ := f.h.call("POST", "/billing/checkout", body, true)
+			assertCheckoutResponse(t, status, raw, f.payment.ID, tc.code)
+			f.assertCheckoutUnchanged(t, before, agreement, calls)
+		})
+	}
+}
+
+func TestIntegrationBillingConcurrentCheckoutReplayTerms(t *testing.T) {
+	f := billingHarness(t, true)
+	before, agreement := f.openCheckout(t)
+	calls := f.provider.calls()
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := range 8 {
+		wg.Go(func() {
+			<-start
+			renew := i%2 == 0
+			body := fmt.Sprintf(`{"tierId":%q,"priceKopecks":10000,"autoRenew":%t}`, f.low.ID, renew)
+			status, raw, _ := f.h.call("POST", "/billing/checkout", body, true)
+			var code string
+			if !renew {
+				code = "checkout_terms_conflict"
+			}
+			assertCheckoutResponse(t, status, raw, f.payment.ID, code)
+		})
+	}
+	close(start)
+	wg.Wait()
+	f.assertCheckoutUnchanged(t, before, agreement, calls)
+}
+
 func TestIntegrationBillingPaidAccessAndDuplicateNotifications(t *testing.T) {
 	f := billingHarness(t, true)
 	h := f.h
@@ -542,5 +699,121 @@ func TestIntegrationBillingServerWebhookIgnoresPayloadAndStalePending(t *testing
 	after, _ := f.h.server.q.PaymentByID(t.Context(), f.payment.ID)
 	if after.Status != "succeeded" || after.PeriodEnd != before.PeriodEnd {
 		t.Fatal("stale pending overwrote paid state")
+	}
+}
+
+func TestIntegrationBillingManualReconciliation(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		remoteState string
+		unmatched   bool
+		mismatch    bool
+		otherID     bool
+		settled     bool
+		failGet     bool
+		want        billing.ReconciliationOutcome
+		duplicate   billing.ReconciliationOutcome
+		status      string
+		grants      int
+		notices     int
+		callback    int
+	}{
+		{name: "unmatched", remoteState: "succeeded", unmatched: true, want: billing.ReconciliationUnmatched, status: "pending", callback: 200},
+		{name: "pending", remoteState: "pending", want: billing.ReconciliationPending, status: "pending", callback: 200},
+		{name: "mismatch", remoteState: "succeeded", mismatch: true, want: billing.ReconciliationReview, status: "review", callback: 200},
+		{name: "unexpected status", remoteState: "waiting_for_capture", want: billing.ReconciliationReview, status: "review", callback: 200},
+		{name: "succeeded", remoteState: "succeeded", want: billing.ReconciliationSucceeded, duplicate: billing.ReconciliationAlreadySucceeded, status: "succeeded", grants: 1, callback: 200},
+		{name: "canceled", remoteState: "canceled", want: billing.ReconciliationCanceled, duplicate: billing.ReconciliationAlreadyCanceled, status: "canceled", notices: 1, callback: 200},
+		{name: "terminal different provider payment", remoteState: "succeeded", settled: true, otherID: true, want: billing.ReconciliationReview, status: "succeeded", grants: 1, callback: 200},
+		{name: "terminal different amount", remoteState: "succeeded", settled: true, mismatch: true, want: billing.ReconciliationReview, status: "succeeded", grants: 1, callback: 200},
+		{name: "terminal stale provider state", remoteState: "pending", settled: true, want: billing.ReconciliationAlreadySucceeded, status: "succeeded", grants: 1, callback: 200},
+		{name: "provider unavailable", failGet: true, status: "pending", callback: 503},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := billingHarness(t, true)
+			if tt.settled {
+				f.paid(t)
+			} else {
+				f.process(t)
+			}
+			ctx := t.Context()
+			before, err := f.h.server.q.PaymentByID(ctx, f.payment.ID)
+			if err != nil {
+				t.Fatal("read payment before reconciliation")
+			}
+
+			f.provider.mu.Lock()
+			p := f.provider.payments[f.payment.ID]
+			p.Status = tt.remoteState
+			p.Paid = p.Status == "succeeded"
+			if tt.unmatched {
+				p.Metadata = map[string]string{
+					"etheyl_payment_id":   "unrelated-payment",
+					"etheyl_agreement_id": p.Metadata["etheyl_agreement_id"],
+				}
+			}
+			if tt.mismatch {
+				p.Amount.Value = "0.01"
+			}
+			if tt.otherID {
+				p.ID = "different-remote-payment"
+				f.provider.payments["different"] = p
+			} else {
+				f.provider.payments[f.payment.ID] = p
+			}
+			f.provider.failGet = tt.failGet
+			creates := f.provider.createCalls
+			f.provider.mu.Unlock()
+
+			assertState := func() {
+				t.Helper()
+				row, err := f.h.server.q.PaymentByID(ctx, f.payment.ID)
+				if err != nil || row.Status != tt.status {
+					t.Fatalf("payment state = %q, want %q (query failed: %t)", row.Status, tt.status, err != nil)
+				}
+				if tt.settled && (row.ProviderID != before.ProviderID || row.CompletedAt != before.CompletedAt || row.PeriodEnd != before.PeriodEnd || row.FailureCode != before.FailureCode) {
+					t.Error("reconciliation changed a terminal payment")
+				}
+				var grants, notices int
+				err = f.h.pool.QueryRow(ctx, "SELECT (SELECT count(*) FROM subscriptions), (SELECT count(*) FROM mail_outbox WHERE kind='billing')").Scan(&grants, &notices)
+				if err != nil || grants != tt.grants || notices != tt.notices {
+					t.Fatalf("grants = %d, notices = %d, want %d and %d (query failed: %t)", grants, notices, tt.grants, tt.notices, err != nil)
+				}
+				f.provider.mu.Lock()
+				defer f.provider.mu.Unlock()
+				if f.provider.createCalls != creates {
+					t.Error("reconciliation attempted provider creation")
+				}
+			}
+
+			outcome, err := f.svc.Reconcile(ctx, p.ID)
+			if outcome != tt.want || errors.Is(err, billing.ErrProvider) != tt.failGet || (err != nil && !tt.failGet) {
+				t.Fatalf("reconciliation = %q, want %q (error: %t)", outcome, tt.want, err != nil)
+			}
+			assertState()
+			if tt.duplicate != "" {
+				outcome, err := f.svc.Reconcile(ctx, p.ID)
+				if err != nil || outcome != tt.duplicate {
+					t.Fatalf("duplicate reconciliation = %q, want %q (error: %t)", outcome, tt.duplicate, err != nil)
+				}
+				assertState()
+			}
+
+			body := fmt.Sprintf(`{"type":"notification","event":"payment.succeeded","object":{"id":%q}}`, p.ID)
+			req, err := http.NewRequestWithContext(ctx, "POST", f.h.url+"/api/v1/billing/yookassa/webhook", strings.NewReader(body))
+			if err != nil {
+				t.Fatal("construct callback request")
+			}
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal("send callback request")
+			}
+			_, _ = io.Copy(io.Discard, res.Body)
+			_ = res.Body.Close()
+			if res.StatusCode != tt.callback {
+				t.Errorf("callback status = %d, want %d", res.StatusCode, tt.callback)
+			}
+			assertState()
+		})
 	}
 }

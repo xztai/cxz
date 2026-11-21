@@ -360,7 +360,7 @@ export interface paths {
 			cookie?: never;
 		};
 		get?: never;
-		/** @description Complete list of active IDs, highest first. Positions of used tiers are immutable; archived positions are reserved. */
+		/** @description Send every active tier ID exactly once, highest first. The server assigns the existing active positions in descending order. Used tiers keep their positions, and archived positions are reserved. */
 		put: operations['reorderTiers'];
 		post?: never;
 		delete?: never;
@@ -376,6 +376,7 @@ export interface paths {
 			path?: never;
 			cookie?: never;
 		};
+		/** @description Filters by status before applying the offset. Drafts are ordered by last update and published posts by publication date, newest first, with descending ID as a tie-breaker. Omitting status lists all posts by descending ID. */
 		get: operations['ownPosts'];
 		put?: never;
 		post: operations['createPost'];
@@ -490,7 +491,7 @@ export interface paths {
 			path?: never;
 			cookie?: never;
 		};
-		/** @description Published titles and explicit public teasers only; never contains body or media. */
+		/** @description Published summaries with titles, explicit public teasers and minimum tier names; never contains body or media. */
 		get: operations['authorPosts'];
 		put?: never;
 		post?: never;
@@ -562,6 +563,7 @@ export interface paths {
 		};
 		get?: never;
 		put?: never;
+		/** @description Confirm the current tier price in kopecks. The server checks it against the stored price before creating a payment or considering reuse. It returns an open payment only for a manual checkout with the same tier, amount and original auto-renew consent. */
 		post: operations['checkout'];
 		delete?: never;
 		options?: never;
@@ -909,7 +911,15 @@ export interface components {
 			/** Format: date-time */
 			publishedAt: string | null;
 		};
-		Post: components['schemas']['PostSummary'] & {
+		PostListItem: components['schemas']['PostSummary'] & {
+			/** @description Name of the minimum subscription tier, including archived tiers. Null for public posts. */
+			minimumTierName: string | null;
+		};
+		OwnPostSummary: components['schemas']['PostListItem'] & {
+			/** Format: date-time */
+			updatedAt: string;
+		};
+		Post: components['schemas']['PostListItem'] & {
 			canRead: boolean;
 			/** @description Only present with access */
 			bodyMarkdown?: string;
@@ -994,12 +1004,33 @@ export interface components {
 		};
 		Error: {
 			error: {
+				/**
+				 * @description Machine-readable error code. Operations document the codes applicable to their responses.
+				 * @example account_changed
+				 * @example tier_order_locked
+				 * @example price_changed
+				 * @example invalid_price
+				 */
 				code: string;
 				message: string;
 			};
 		};
 	};
 	responses: {
+		/** @description The expected Studio account did not match the authenticated session. */
+		AccountChanged: {
+			headers: {
+				[name: string]: unknown;
+			};
+			content: {
+				'application/json': components['schemas']['Error'] & {
+					error?: {
+						/** @constant */
+						code?: 'account_changed';
+					};
+				};
+			};
+		};
 		/** @description Test shop only; authoritative server verification */
 		Payment: {
 			headers: {
@@ -1029,8 +1060,22 @@ export interface components {
 			};
 			content: {
 				'application/json': {
-					posts: components['schemas']['PostSummary'][];
+					posts: components['schemas']['PostListItem'][];
 					hasMore: boolean;
+				};
+			};
+		};
+		/** @description Up to 24 summaries with publication progress for the signed-in author */
+		OwnPosts: {
+			headers: {
+				[name: string]: unknown;
+			};
+			content: {
+				'application/json': {
+					posts: components['schemas']['OwnPostSummary'][];
+					hasMore: boolean;
+					/** @description Whether the signed-in author currently has any published post across all pages, including tier-gated posts. */
+					hasPublishedPost: boolean;
 				};
 			};
 		};
@@ -1049,13 +1094,14 @@ export interface components {
 				'*/*': string;
 			};
 		};
-		/** @description Saved public profile */
+		/** @description Session owner and saved profile */
 		Profile: {
 			headers: {
 				[name: string]: unknown;
 			};
 			content: {
 				'application/json': {
+					ownerId: string;
 					profile: components['schemas']['Profile'];
 				};
 			};
@@ -1103,7 +1149,7 @@ export interface components {
 				};
 			};
 		};
-		/** @description 400 invalid/expired token, 401 credentials, 403 CSRF/unverified/forbidden, 409 email/nickname already registered, 415 content type, 422 validation/unchanged password, 429 rate limit, 500 internal, 503 busy/unavailable */
+		/** @description API error. Examples include invalid or expired tokens (400), credentials (401), CSRF or forbidden requests (403), conflicts such as email_exists, nickname_exists, tier_order_locked or price_changed (409), unsupported content type (415), validation, password_unchanged or invalid_price (422), rate limits (429), internal errors (500), and temporary unavailability (503). */
 		Error: {
 			headers: {
 				[name: string]: unknown;
@@ -1114,6 +1160,8 @@ export interface components {
 		};
 	};
 	parameters: {
+		/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+		ExpectedUserId: string;
 		PostID: string;
 		MediaID: string;
 		PostOffset: number;
@@ -1414,30 +1462,38 @@ export interface operations {
 	ownProfile: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
 		requestBody?: never;
 		responses: {
-			/** @description Own profile; null until first save */
+			/** @description Session owner and own profile, which is null until first save */
 			200: {
 				headers: {
 					[name: string]: unknown;
 				};
 				content: {
 					'application/json': {
+						ownerId: string;
 						profile: components['schemas']['Profile'] | null;
 					};
 				};
 			};
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	saveProfile: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
@@ -1448,13 +1504,17 @@ export interface operations {
 		};
 		responses: {
 			200: components['responses']['Profile'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	uploadProfileImage: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				kind: 'avatar' | 'cover';
 			};
@@ -1469,13 +1529,17 @@ export interface operations {
 		};
 		responses: {
 			200: components['responses']['Profile'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	removeProfileImage: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				kind: 'avatar' | 'cover';
 			};
@@ -1484,6 +1548,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Profile'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
@@ -1568,20 +1633,27 @@ export interface operations {
 	ownTiers: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Tiers'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	createTier: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
@@ -1592,13 +1664,17 @@ export interface operations {
 		};
 		responses: {
 			201: components['responses']['Tier'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	updateTier: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: string;
 			};
@@ -1611,13 +1687,17 @@ export interface operations {
 		};
 		responses: {
 			200: components['responses']['Tier'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	deleteTier: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: string;
 			};
@@ -1626,13 +1706,17 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Message'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	archiveTier: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: string;
 			};
@@ -1641,13 +1725,17 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Message'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	reorderTiers: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
@@ -1660,6 +1748,21 @@ export interface operations {
 		};
 		responses: {
 			200: components['responses']['Tiers'];
+			/** @description tier_order_locked if a used tier would change position, or profile_required if the creator profile is missing. */
+			409: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Error'] & {
+						error?: {
+							/** @enum {string} */
+							code?: 'tier_order_locked' | 'profile_required';
+						};
+					};
+				};
+			};
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
@@ -1667,34 +1770,46 @@ export interface operations {
 		parameters: {
 			query?: {
 				offset?: components['parameters']['PostOffset'];
+				status?: 'draft' | 'published';
 			};
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
 		requestBody?: never;
 		responses: {
-			200: components['responses']['Posts'];
+			200: components['responses']['OwnPosts'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	createPost: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
 		requestBody: components['requestBodies']['Post'];
 		responses: {
 			201: components['responses']['Post'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	ownPost: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 			};
@@ -1703,13 +1818,17 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Post'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	updatePost: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 			};
@@ -1718,13 +1837,17 @@ export interface operations {
 		requestBody: components['requestBodies']['Post'];
 		responses: {
 			200: components['responses']['Post'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	deletePost: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 			};
@@ -1733,13 +1856,17 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Message'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	publishPost: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 			};
@@ -1748,13 +1875,17 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Post'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
 	unpublishPost: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 			};
@@ -1763,6 +1894,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Post'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
@@ -1772,7 +1904,10 @@ export interface operations {
 				kind: 'image' | 'audio' | 'video' | 'attachment';
 				filename: string;
 			};
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 			};
@@ -1795,6 +1930,7 @@ export interface operations {
 					};
 				};
 			};
+			412: components['responses']['AccountChanged'];
 			413: components['responses']['Error'];
 			default: components['responses']['Error'];
 		};
@@ -1802,7 +1938,10 @@ export interface operations {
 	detachPostMedia: {
 		parameters: {
 			query?: never;
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path: {
 				id: components['parameters']['PostID'];
 				mediaID: components['parameters']['MediaID'];
@@ -1812,6 +1951,7 @@ export interface operations {
 		requestBody?: never;
 		responses: {
 			200: components['responses']['Message'];
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};
@@ -1911,6 +2051,38 @@ export interface operations {
 		};
 		responses: {
 			202: components['responses']['Payment'];
+			/** @description price_changed if the tier price differs from the confirmed price, checkout_terms_conflict if an open payment is an automatic renewal or has different confirmed terms, own_subscription for the subscriber's own tier, or subscription_active if the subscription is already paid. */
+			409: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Error'] & {
+						error?: {
+							/** @enum {string} */
+							code?:
+								| 'price_changed'
+								| 'checkout_terms_conflict'
+								| 'own_subscription'
+								| 'subscription_active';
+						};
+					};
+				};
+			};
+			/** @description invalid_price if the confirmed price matches the tier price but is below 100 kopecks, or validation if the request is invalid. */
+			422: {
+				headers: {
+					[name: string]: unknown;
+				};
+				content: {
+					'application/json': components['schemas']['Error'] & {
+						error?: {
+							/** @enum {string} */
+							code?: 'invalid_price' | 'validation';
+						};
+					};
+				};
+			};
 			default: components['responses']['Error'];
 		};
 	};
@@ -2072,7 +2244,10 @@ export interface operations {
 				from?: string;
 				to?: string;
 			};
-			header?: never;
+			header?: {
+				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */
+				'X-Expected-User-ID'?: components['parameters']['ExpectedUserId'];
+			};
 			path?: never;
 			cookie?: never;
 		};
@@ -2087,6 +2262,7 @@ export interface operations {
 					'application/json': components['schemas']['Analytics'];
 				};
 			};
+			412: components['responses']['AccountChanged'];
 			default: components['responses']['Error'];
 		};
 	};

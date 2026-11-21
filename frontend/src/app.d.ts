@@ -5,7 +5,10 @@ declare global {
 		// interface Error {}
 		// interface Locals {}
 		// interface PageData {}
-		// interface PageState {}
+		interface PageState {
+			profilePreview?: boolean;
+			postEditorFeedback?: { text: string; error?: boolean };
+		}
 		// interface Platform {}
 	}
 }
