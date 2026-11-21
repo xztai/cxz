@@ -1,4 +1,4 @@
-.PHONY: init up down check lint generate test test-integration test-restore e2e
+.PHONY: init up down check lint generate test test-integration test-restore e2e seed
 
 init:
 	python3 scripts/init-env.py
@@ -24,3 +24,6 @@ e2e:
 
 test-restore:
 	python3 scripts/restore-drill.py
+
+seed:
+	python3 scripts/seed.py $(SEED_FLAGS)
