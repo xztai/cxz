@@ -433,8 +433,14 @@ paths:
   /me/posts:
     get:
       operationId: ownPosts
+      description: Filters by status before applying the offset. Drafts are ordered by last update and published posts by publication date, newest first, with descending ID as a tie-breaker. Omitting status lists all posts by descending ID.
       security: [{session: []}]
-      parameters: [{$ref: '#/components/parameters/PostOffset'}, {$ref: '#/components/parameters/ExpectedUserId'}]
+      parameters:
+        - {$ref: '#/components/parameters/PostOffset'}
+        - {$ref: '#/components/parameters/ExpectedUserId'}
+        - in: query
+          name: status
+          schema: {type: string, enum: [draft, published]}
       responses:
         '412': {$ref: '#/components/responses/AccountChanged'}
         '200': {$ref: '#/components/responses/OwnPosts'}
@@ -1432,6 +1438,14 @@ components:
         teaser: {type: string}
         minimumTierId: {type: [string, 'null']}
         publishedAt: {type: [string, 'null'], format: date-time}
+    OwnPostSummary:
+      allOf:
+        - {$ref: '#/components/schemas/PostSummary'}
+        - type: object
+          required: [updatedAt, minimumTierName]
+          properties:
+            updatedAt: {type: string, format: date-time}
+            minimumTierName: {type: [string, 'null'], description: 'Name of the minimum subscription tier, including archived tiers. Null for public posts.'}
     Post:
       allOf:
         - {$ref: '#/components/schemas/PostSummary'}
@@ -1612,14 +1626,14 @@ components:
               posts: {type: array, items: {$ref: '#/components/schemas/PostSummary'}}
               hasMore: {type: boolean}
     OwnPosts:
-      description: Up to 24 summaries, newest ID first, with publication status for the signed-in author
+      description: Up to 24 summaries with publication progress for the signed-in author
       content:
         application/json:
           schema:
             type: object
             required: [posts, hasMore, hasPublishedPost]
             properties:
-              posts: {type: array, items: {$ref: '#/components/schemas/PostSummary'}}
+              posts: {type: array, items: {$ref: '#/components/schemas/OwnPostSummary'}}
               hasMore: {type: boolean}
               hasPublishedPost:
                 type: boolean

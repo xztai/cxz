@@ -17,8 +17,14 @@ updated_at=now() WHERE id=$1 AND author_id=$2;
 DELETE FROM posts WHERE id=$1 AND author_id=$2;
 
 -- name: ListOwnPosts :many
-SELECT id,title,teaser,minimum_tier_id,published_at FROM posts
-WHERE author_id=$1 ORDER BY id DESC LIMIT 25 OFFSET $2;
+SELECT p.id,p.title,p.teaser,p.minimum_tier_id,p.published_at,p.updated_at,t.name AS minimum_tier_name
+FROM posts p
+LEFT JOIN subscription_tiers t ON t.id=p.minimum_tier_id AND t.author_id=p.author_id
+WHERE p.author_id=sqlc.arg(author_id)
+ AND (sqlc.arg(status)::text='' OR (p.published_at IS NOT NULL)=(sqlc.arg(status)::text='published'))
+ORDER BY CASE sqlc.arg(status)::text WHEN 'draft' THEN p.updated_at WHEN 'published' THEN p.published_at END DESC,
+ p.id DESC
+LIMIT 25 OFFSET sqlc.arg('offset');
 
 -- name: HasPublishedPost :one
 SELECT EXISTS (SELECT 1 FROM posts WHERE author_id=$1 AND published_at IS NOT NULL);

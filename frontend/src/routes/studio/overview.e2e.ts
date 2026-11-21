@@ -1,5 +1,5 @@
 import { expect, test, type BrowserContext, type Page, type Request } from '@playwright/test';
-import type { Analytics, Post, Profile, Tier, User } from '#lib/api/client.js';
+import type { Analytics, OwnPostSummary, Post, Profile, Tier, User } from '#lib/api/client.js';
 
 const csrf = 'a'.repeat(43);
 const user = {
@@ -890,4 +890,143 @@ test('Studio keeps the initial editor hidden when session verification fails', a
 	verifySession = true;
 	await main.getByRole('button', { name: 'Повторить' }).click();
 	await expect(editor).toHaveValue(firstProfile.displayName);
+});
+
+for (const refreshFails of [false, true]) {
+	test(`Studio keeps the current post tab and returns from an emptied page after publishing${refreshFails ? ' and retrying the list' : ''}`, async ({
+		page
+	}) => {
+		await mockAccount(page);
+		await page.route('**/api/v1/me/profile', (route) =>
+			route.fulfill({ json: { ownerId: user.id, profile } })
+		);
+		const updatedAt = '2026-11-19T12:00:00Z';
+		const posts: OwnPostSummary[] = Array.from({ length: 25 }, (_, index) => ({
+			...post(String(25 - index)),
+			updatedAt,
+			minimumTierName: null
+		}));
+		const lastDraft = posts[24];
+		lastDraft.minimumTierId = tier.id;
+		lastDraft.minimumTierName = tier.name;
+		let failNextRefresh = refreshFails;
+		await page.route(/\/api\/v1\/me\/posts\?/, (route) => {
+			const params = new URL(route.request().url()).searchParams;
+			const status = params.get('status');
+			expect(['draft', 'published']).toContain(status);
+			const offset = Number(params.get('offset') ?? 0);
+			if (failNextRefresh && status === 'draft' && offset === 24 && lastDraft.publishedAt) {
+				failNextRefresh = false;
+				return route.fulfill({ status: 503, json: {} });
+			}
+			const filtered = posts.filter((entry) => !!entry.publishedAt === (status === 'published'));
+			return route.fulfill({
+				json: {
+					posts: filtered.slice(offset, offset + 24),
+					hasMore: filtered.length > offset + 24,
+					hasPublishedPost: lastDraft.publishedAt !== null
+				}
+			});
+		});
+		await page.route('**/api/v1/me/posts/1/publish', (route) => {
+			expectStudioMutation(route.request());
+			lastDraft.publishedAt = publishedAt;
+			return route.fulfill({ json: { post: lastDraft } });
+		});
+		await page.route('**/api/v1/me/posts/1/unpublish', (route) => {
+			expectStudioMutation(route.request());
+			lastDraft.publishedAt = null;
+			return route.fulfill({ json: { post: lastDraft } });
+		});
+
+		await page.goto('/studio/posts');
+		const main = page.getByRole('main');
+		await expect(main.getByRole('link', { name: 'Черновики' })).toHaveAttribute(
+			'aria-current',
+			'page'
+		);
+		await expect(main.getByText('Работа 25', { exact: true })).toBeVisible();
+		await expect(main.getByText('Работа 1', { exact: true })).toHaveCount(0);
+		await expect(main.getByText('Для всех').first()).toBeVisible();
+		await expect(main.getByRole('link', { name: 'Новый пост' })).toHaveAttribute(
+			'href',
+			'/studio/posts/new'
+		);
+		await main.getByRole('link', { name: 'Следующая' }).click();
+		await expect(page).toHaveURL('/studio/posts?status=draft&page=2');
+		await page.reload();
+		await expect(main.getByText('Работа 1', { exact: true })).toBeVisible();
+		await expect(main.getByText(tier.name, { exact: true })).toBeVisible();
+		await expect(main.locator('time')).toHaveAttribute('datetime', updatedAt);
+		await expect(main.getByRole('link', { name: 'Редактировать' })).toHaveAttribute(
+			'href',
+			'/studio/posts/1/edit'
+		);
+		await main.getByRole('button', { name: 'Опубликовать' }).click();
+		if (refreshFails) await main.getByRole('button', { name: 'Повторить' }).click();
+		await expect(page).toHaveURL('/studio/posts?status=draft&page=1');
+		await expect(main.getByText('Пост опубликован.', { exact: true })).toBeVisible();
+		await expect(main.getByText('Работа 1', { exact: true })).toHaveCount(0);
+		await expect(main.getByRole('link', { name: 'Следующая' })).toHaveCount(0);
+
+		await main.getByRole('link', { name: 'Опубликованные' }).click();
+		await expect(page).toHaveURL('/studio/posts?status=published&page=1');
+		await expect(main.getByText('Работа 1', { exact: true })).toBeVisible();
+		await expect(main.locator('time')).toHaveAttribute('datetime', publishedAt);
+		await main.getByRole('button', { name: 'Снять', exact: true }).click();
+		await expect(page).toHaveURL('/studio/posts?status=published&page=1');
+		await expect(main.getByText('Пост снят с публикации.', { exact: true })).toBeVisible();
+		await expect(main.getByText(/Опубликованных постов пока нет/)).toBeVisible();
+	});
+}
+
+test('Studio retries loading posts and keeps a row when deletion fails', async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await mockAccount(page);
+	await page.route('**/api/v1/me/profile', (route) =>
+		route.fulfill({ json: { ownerId: user.id, profile } })
+	);
+	const draft: OwnPostSummary = { ...post('7'), updatedAt: publishedAt, minimumTierName: null };
+	let failLoad = true;
+	let failDelete = true;
+	let deleted = false;
+	await page.route(/\/api\/v1\/me\/posts\?/, (route) =>
+		failLoad
+			? route.fulfill({ status: 503, json: {} })
+			: route.fulfill({
+					json: { posts: deleted ? [] : [draft], hasMore: false, hasPublishedPost: false }
+				})
+	);
+	await page.route('**/api/v1/me/tiers', (route) => route.fulfill({ json: { tiers: [] } }));
+	await page.route('**/api/v1/me/posts/7', (route) => {
+		if (route.request().method() === 'GET') return route.fulfill({ json: { post: draft } });
+		expect(route.request().method()).toBe('DELETE');
+		expectStudioMutation(route.request());
+		if (failDelete) return route.fulfill({ status: 503, json: {} });
+		deleted = true;
+		return route.fulfill({ json: { message: 'Публикация удалена.' } });
+	});
+
+	await page.goto('/studio/posts');
+	const main = page.getByRole('main');
+	const retry = main.getByRole('button', { name: 'Повторить' });
+	await expect(retry).toBeVisible();
+	failLoad = false;
+	await retry.click();
+	const remove = main.getByRole('button', { name: 'Удалить', exact: true });
+	await remove.click();
+	const dialog = page.getByRole('dialog');
+	await expect(dialog).toContainText(draft.title);
+	await expect(dialog.getByRole('button', { name: 'Отмена' })).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(dialog).toBeHidden();
+	await expect(remove).toBeFocused();
+	await remove.click();
+	await dialog.getByRole('button', { name: 'Удалить', exact: true }).click();
+	await expect(main.getByRole('alert')).toBeVisible();
+	await expect(main.getByText(draft.title, { exact: true })).toBeVisible();
+	failDelete = false;
+	await remove.click();
+	await dialog.getByRole('button', { name: 'Удалить', exact: true }).click();
+	await expect(main.getByText('Черновиков пока нет')).toBeVisible();
 });

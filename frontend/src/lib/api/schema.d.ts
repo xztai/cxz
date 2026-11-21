@@ -376,6 +376,7 @@ export interface paths {
 			path?: never;
 			cookie?: never;
 		};
+		/** @description Filters by status before applying the offset. Drafts are ordered by last update and published posts by publication date, newest first, with descending ID as a tie-breaker. Omitting status lists all posts by descending ID. */
 		get: operations['ownPosts'];
 		put?: never;
 		post: operations['createPost'];
@@ -910,6 +911,12 @@ export interface components {
 			/** Format: date-time */
 			publishedAt: string | null;
 		};
+		OwnPostSummary: components['schemas']['PostSummary'] & {
+			/** Format: date-time */
+			updatedAt: string;
+			/** @description Name of the minimum subscription tier, including archived tiers. Null for public posts. */
+			minimumTierName: string | null;
+		};
 		Post: components['schemas']['PostSummary'] & {
 			canRead: boolean;
 			/** @description Only present with access */
@@ -1056,14 +1063,14 @@ export interface components {
 				};
 			};
 		};
-		/** @description Up to 24 summaries, newest ID first, with publication status for the signed-in author */
+		/** @description Up to 24 summaries with publication progress for the signed-in author */
 		OwnPosts: {
 			headers: {
 				[name: string]: unknown;
 			};
 			content: {
 				'application/json': {
-					posts: components['schemas']['PostSummary'][];
+					posts: components['schemas']['OwnPostSummary'][];
 					hasMore: boolean;
 					/** @description Whether the signed-in author currently has any published post across all pages, including tier-gated posts. */
 					hasPublishedPost: boolean;
@@ -1761,6 +1768,7 @@ export interface operations {
 		parameters: {
 			query?: {
 				offset?: components['parameters']['PostOffset'];
+				status?: 'draft' | 'published';
 			};
 			header?: {
 				/** @description Optional canonical decimal ID of the account whose Studio editor initiated the request. Repeated or nonmatching values fail the precondition. */

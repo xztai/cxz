@@ -9,6 +9,10 @@ export type TierInput = components['schemas']['TierInput'];
 export type Post = components['schemas']['Post'];
 export type PostInput = components['schemas']['PostInput'];
 export type PostSummary = components['schemas']['PostSummary'];
+export type OwnPostSummary = components['schemas']['OwnPostSummary'];
+export type OwnPostStatus = Required<
+	NonNullable<operations['ownPosts']['parameters']['query']>
+>['status'];
 export type Analytics = components['schemas']['Analytics'];
 export type RegisterInput = components['schemas']['Register'];
 type Result<K extends keyof operations, S extends number> = operations[K] extends {
@@ -162,11 +166,22 @@ export const api = {
 			body,
 			method: 'PUT'
 		}),
-	ownPosts: (expectedUserId: string, offset = 0, fetcher?: typeof fetch) =>
-		request<Result<'ownPosts', 200>>(offset ? `/me/posts?offset=${offset}` : '/me/posts', {
+	ownPosts: (
+		expectedUserId: string,
+		{
+			offset = 0,
+			status,
+			fetcher
+		}: { offset?: number; status?: OwnPostStatus; fetcher?: typeof fetch } = {}
+	) => {
+		const query = new URLSearchParams();
+		if (offset) query.set('offset', String(offset));
+		if (status) query.set('status', status);
+		return request<Result<'ownPosts', 200>>(query.size ? `/me/posts?${query}` : '/me/posts', {
 			expectedUserId,
 			fetcher
-		}),
+		});
+	},
 	ownPost: (expectedUserId: string, id: string, fetcher?: typeof fetch) =>
 		request<Result<'ownPost', 200>>(`/me/posts/${encodeURIComponent(id)}`, {
 			expectedUserId,
@@ -189,6 +204,11 @@ export const api = {
 		request<Result<'unpublishPost', 200>>(`/me/posts/${encodeURIComponent(id)}/unpublish`, {
 			expectedUserId,
 			body: {}
+		}),
+	deletePost: (expectedUserId: string, id: string) =>
+		request<Result<'deletePost', 200>>(`/me/posts/${encodeURIComponent(id)}`, {
+			expectedUserId,
+			method: 'DELETE'
 		}),
 	analytics: (expectedUserId: string, fetcher?: typeof fetch) =>
 		request<Result<'analytics', 200>>('/me/analytics', { expectedUserId, fetcher }),

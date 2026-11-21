@@ -1,18 +1,25 @@
-import { api } from '#lib/api/client.js';
+import { api, type OwnPostStatus } from '#lib/api/client.js';
 import type { PageLoad } from './$types';
+import { maxPage, pageSize, postsDependency } from './listing.js';
 
 export const load: PageLoad = async ({ parent, depends, fetch, url }) => {
-	depends('studio:posts');
-	const requestedOffset = Number(url.searchParams.get('offset') ?? 0);
-	const offset =
-		Number.isInteger(requestedOffset) && requestedOffset >= 0 && requestedOffset <= 100000
-			? requestedOffset
-			: 0;
+	depends(postsDependency);
+	const status: OwnPostStatus =
+		url.searchParams.get('status') === 'published' ? 'published' : 'draft';
+	const requestedPage = Number(
+		url.searchParams.get('page') ?? Number(url.searchParams.get('offset') ?? 0) / pageSize + 1
+	);
+	const pageNumber =
+		Number.isInteger(requestedPage) && requestedPage >= 1 && requestedPage <= maxPage
+			? requestedPage
+			: 1;
 	const { access } = await parent();
-	if (access.state !== 'ready' || !access.profile) return { offset, listing: null };
+	if (access.state !== 'ready' || !access.profile) return { status, pageNumber, listing: null };
 	try {
-		return { offset, listing: await api.ownPosts(access.ownerId, offset, fetch) };
+		const offset = (pageNumber - 1) * pageSize;
+		const listing = await api.ownPosts(access.ownerId, { offset, status, fetcher: fetch });
+		return { status, pageNumber, listing };
 	} catch {
-		return { offset, listing: null };
+		return { status, pageNumber, listing: null };
 	}
 };

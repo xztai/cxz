@@ -209,13 +209,13 @@ func fixtureSubscription(t *testing.T, h *harness, tier string) {
 
 func TestIntegrationOwnPostsPublicationProgress(t *testing.T) {
 	h := publicationHarness(t)
-	checkPage := func(path string, wantIDs []string, wantMore, wantPublished bool) []PostSummary {
+	checkPage := func(path string, wantIDs []string, wantMore, wantPublished bool) []OwnPostSummary {
 		t.Helper()
 		body := h.expect("GET", path, "", 200)
 		var page struct {
-			Posts            []PostSummary `json:"posts"`
-			HasMore          *bool         `json:"hasMore"`
-			HasPublishedPost *bool         `json:"hasPublishedPost"`
+			Posts            []OwnPostSummary `json:"posts"`
+			HasMore          *bool            `json:"hasMore"`
+			HasPublishedPost *bool            `json:"hasPublishedPost"`
 		}
 		if err := json.Unmarshal([]byte(body), &page); err != nil {
 			t.Fatal(err)
@@ -235,8 +235,12 @@ func TestIntegrationOwnPostsPublicationProgress(t *testing.T) {
 	}
 
 	const firstPage = "/me/posts"
+	const draftsPage = "/me/posts?status=draft"
+	const publishedPage = "/me/posts?status=published"
 	const pastEnd = "/me/posts?offset=100"
 	checkPage(firstPage, nil, false, false)
+	h.expect("GET", "/me/posts?status=all", "", 422)
+	h.expect("GET", "/me/posts?status=", "", 422)
 
 	ownerClient, ownerCSRF := h.client, h.csrf
 	newTestSession(t, h, "other")
@@ -260,8 +264,27 @@ SELECT id,'Черновик' FROM users WHERE nickname='writer' RETURNING id`).S
 	}
 	slices.Reverse(draftIDs)
 	checkPage(firstPage, draftIDs, true, false)
+	checkPage(publishedPage, nil, false, false)
+
+	h.expect("PUT", "/me/posts/"+older.ID, postBody(fmt.Sprintf("%q", tier.ID)), 200)
+	updatedDrafts := checkPage(draftsPage, append([]string{older.ID}, draftIDs[:23]...), true, false)
+	if !updatedDrafts[0].UpdatedAt.After(updatedDrafts[1].UpdatedAt) {
+		t.Fatalf("drafts should be sorted by last edit: %+v", updatedDrafts[:2])
+	}
+	checkPage(draftsPage+"&offset=24", draftIDs[23:], false, false)
 
 	h.expect("POST", "/me/posts/"+older.ID+"/publish", "", 200)
+	h.expect("POST", "/me/tiers/"+tier.ID+"/archive", "", 200)
+	for _, draft := range checkPage(draftsPage, draftIDs, false, true) {
+		if draft.PublishedAt != nil || draft.MinimumTierName != nil || draft.UpdatedAt.IsZero() {
+			t.Fatalf("unexpected draft summary: %+v", draft)
+		}
+	}
+	checkPage(draftsPage+"&offset=24", nil, false, true)
+	published := checkPage(publishedPage, []string{older.ID}, false, true)[0]
+	if published.PublishedAt == nil || published.MinimumTierName == nil || *published.MinimumTierName != "Поддержка" {
+		t.Fatalf("unexpected archived tier on published post: %+v", published)
+	}
 	for _, draft := range checkPage(firstPage, draftIDs, true, true) {
 		if draft.PublishedAt != nil {
 			t.Fatalf("published post in first page of drafts: %s", draft.ID)
@@ -287,7 +310,17 @@ SELECT id,'Черновик' FROM users WHERE nickname='writer' RETURNING id`).S
 		t.Fatalf("unexpected public summary: %s", body)
 	}
 
+	h.expect("POST", "/me/posts/"+draftIDs[0]+"/publish", "", 200)
+	h.expect("PUT", "/me/posts/"+older.ID, postBody(fmt.Sprintf("%q", tier.ID)), 200)
+	checkPage(publishedPage, []string{draftIDs[0], older.ID}, false, true)
+	// Publishing the older ID again gives it the newest publication date.
 	h.expect("POST", "/me/posts/"+older.ID+"/unpublish", "", 200)
+	h.expect("POST", "/me/posts/"+older.ID+"/publish", "", 200)
+	checkPage(publishedPage, []string{older.ID, draftIDs[0]}, false, true)
+	h.expect("POST", "/me/posts/"+draftIDs[0]+"/unpublish", "", 200)
+	h.expect("POST", "/me/posts/"+older.ID+"/unpublish", "", 200)
+	checkPage(publishedPage, nil, false, false)
+	checkPage(draftsPage, append([]string{older.ID}, draftIDs[:23]...), true, false)
 	checkPage(firstPage, draftIDs, true, false)
 	checkPage(pastEnd, nil, false, false)
 }

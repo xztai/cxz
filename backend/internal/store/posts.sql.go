@@ -183,25 +183,34 @@ func (q *Queries) HasPublishedPost(ctx context.Context, authorID int64) (bool, e
 }
 
 const listOwnPosts = `-- name: ListOwnPosts :many
-SELECT id,title,teaser,minimum_tier_id,published_at FROM posts
-WHERE author_id=$1 ORDER BY id DESC LIMIT 25 OFFSET $2
+SELECT p.id,p.title,p.teaser,p.minimum_tier_id,p.published_at,p.updated_at,t.name AS minimum_tier_name
+FROM posts p
+LEFT JOIN subscription_tiers t ON t.id=p.minimum_tier_id AND t.author_id=p.author_id
+WHERE p.author_id=$1
+ AND ($2::text='' OR (p.published_at IS NOT NULL)=($2::text='published'))
+ORDER BY CASE $2::text WHEN 'draft' THEN p.updated_at WHEN 'published' THEN p.published_at END DESC,
+ p.id DESC
+LIMIT 25 OFFSET $3
 `
 
 type ListOwnPostsParams struct {
 	AuthorID int64
+	Status   string
 	Offset   int32
 }
 
 type ListOwnPostsRow struct {
-	ID            int64
-	Title         string
-	Teaser        string
-	MinimumTierID pgtype.Int8
-	PublishedAt   pgtype.Timestamptz
+	ID              int64
+	Title           string
+	Teaser          string
+	MinimumTierID   pgtype.Int8
+	PublishedAt     pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
+	MinimumTierName pgtype.Text
 }
 
 func (q *Queries) ListOwnPosts(ctx context.Context, arg ListOwnPostsParams) ([]ListOwnPostsRow, error) {
-	rows, err := q.db.Query(ctx, listOwnPosts, arg.AuthorID, arg.Offset)
+	rows, err := q.db.Query(ctx, listOwnPosts, arg.AuthorID, arg.Status, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -215,6 +224,8 @@ func (q *Queries) ListOwnPosts(ctx context.Context, arg ListOwnPostsParams) ([]L
 			&i.Teaser,
 			&i.MinimumTierID,
 			&i.PublishedAt,
+			&i.UpdatedAt,
+			&i.MinimumTierName,
 		); err != nil {
 			return nil, err
 		}

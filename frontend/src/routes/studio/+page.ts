@@ -8,7 +8,7 @@ export const load: PageLoad = async ({ parent, depends, fetch }) => {
 		return { latestPosts: null, progress: null, analytics: null };
 	}
 
-	const posts = api.ownPosts(access.ownerId, 0, fetch);
+	const posts = api.ownPosts(access.ownerId, { fetcher: fetch });
 	const latestPosts = posts.then(({ posts }) => posts.slice(0, 3)).catch(() => null);
 	const progress = Promise.all([api.ownTiers(access.ownerId, fetch), posts])
 		.then(([{ tiers }, { posts, hasPublishedPost }]) => ({

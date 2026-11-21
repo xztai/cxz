@@ -27,6 +27,12 @@ type PostSummary struct {
 	PublishedAt    *time.Time `json:"publishedAt"`
 }
 
+type OwnPostSummary struct {
+	PostSummary
+	UpdatedAt       time.Time `json:"updatedAt"`
+	MinimumTierName *string   `json:"minimumTierName"`
+}
+
 type Post struct {
 	PostSummary
 	CanRead      bool       `json:"canRead"`
@@ -325,6 +331,13 @@ func (s *Server) ownPosts(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	status := ""
+	if values, ok := r.URL.Query()["status"]; ok {
+		if len(values) != 1 || (values[0] != "draft" && values[0] != "published") {
+			return invalid()
+		}
+		status = values[0]
+	}
 	ctx := r.Context()
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
@@ -332,7 +345,7 @@ func (s *Server) ownPosts(w http.ResponseWriter, r *http.Request) error {
 	}
 	defer socialRollback(tx)
 	q := store.New(tx)
-	rows, err := q.ListOwnPosts(ctx, store.ListOwnPostsParams{AuthorID: u.ID, Offset: offset})
+	rows, err := q.ListOwnPosts(ctx, store.ListOwnPostsParams{AuthorID: u.ID, Status: status, Offset: offset})
 	if err != nil {
 		return err
 	}
@@ -343,9 +356,16 @@ func (s *Server) ownPosts(w http.ResponseWriter, r *http.Request) error {
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	posts := make([]PostSummary, 0, min(len(rows), 24))
+	posts := make([]OwnPostSummary, 0, min(len(rows), 24))
 	for _, p := range rows[:min(len(rows), 24)] {
-		posts = append(posts, postSummary(p.ID, u.Nickname, p.Title, p.Teaser, p.MinimumTierID, p.PublishedAt))
+		post := OwnPostSummary{
+			PostSummary: postSummary(p.ID, u.Nickname, p.Title, p.Teaser, p.MinimumTierID, p.PublishedAt),
+			UpdatedAt:   p.UpdatedAt.Time.UTC(),
+		}
+		if p.MinimumTierName.Valid {
+			post.MinimumTierName = new(p.MinimumTierName.String)
+		}
+		posts = append(posts, post)
 	}
 	return respond(w, 200, map[string]any{
 		"posts": posts, "hasMore": len(rows) > 24, "hasPublishedPost": hasPublishedPost,
