@@ -10,8 +10,13 @@
 	const session = getSession();
 	let {
 		mode,
-		returnAuthor
-	}: { mode: 'login' | 'verify' | 'forgot' | 'reset'; returnAuthor?: string } = $props();
+		returnAuthor,
+		returnPost
+	}: {
+		mode: 'login' | 'verify' | 'forgot' | 'reset';
+		returnAuthor?: string;
+		returnPost?: string;
+	} = $props();
 	let email = $state('');
 	let password = $state('');
 	let token = $state('');
@@ -139,10 +144,17 @@
 				</p>
 				<a
 					class="button button-primary"
-					href={returnAuthor
-						? resolve('/authors/[nickname]', { nickname: returnAuthor })
-						: resolve('/authors')}
-					>{returnAuthor ? 'Вернуться к автору' : 'Найти авторов'}<Icon name="arrow" /></a
+					href="{returnPost
+						? resolve('/posts/[id]', { id: returnPost })
+						: returnAuthor
+							? resolve('/authors/[nickname]', { nickname: returnAuthor })
+							: resolve('/authors')}{returnPost ? '#comments' : ''}"
+					>{returnPost
+						? 'Вернуться к посту'
+						: returnAuthor
+							? 'Вернуться к автору'
+							: 'Найти авторов'}
+					<Icon name="arrow" /></a
 				>
 			{:else if mode === 'reset'}<p class="intro">Используйте новый пароль для входа в аккаунт.</p>
 				<a class="button button-primary" href={resolve('/login')}>Войти</a>

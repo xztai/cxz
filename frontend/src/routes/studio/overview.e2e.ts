@@ -56,6 +56,7 @@ function post(id: string, published: string | null = null): Post {
 		title: `Работа ${id}`,
 		teaser: '',
 		minimumTierId: null,
+		minimumTierName: null,
 		canRead: true,
 		bodyMarkdown: '',
 		publishedAt: published

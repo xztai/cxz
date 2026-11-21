@@ -407,7 +407,7 @@ func TestIntegrationPublicationsAccessAndMedia(t *testing.T) {
 	h.expect("POST", "/me/posts/"+p.ID+"/publish", "", 200)
 	newTestSession(t, h, "reader")
 	readerClient, readerCSRF := h.client, h.csrf
-	locked := func() {
+	locked := func(tierName string) {
 		t.Helper()
 		body := h.expect("GET", "/posts/"+p.ID, "", 200)
 		for _, secret := range []string{"Секретный текст", "bodyMarkdown", "bodyHtml", `"media"`, "photo.png", "posts/"} {
@@ -418,15 +418,18 @@ func TestIntegrationPublicationsAccessAndMedia(t *testing.T) {
 		if !strings.Contains(body, "Публичный анонс") {
 			t.Fatal("missing explicit teaser")
 		}
+		if post := postResult(t, body); post.MinimumTierName == nil || *post.MinimumTierName != tierName {
+			t.Fatalf("expected required tier name %q", tierName)
+		}
 		for _, f := range files {
 			mediaRequest(t, h, "GET", f.URL, "bytes=0-4", 403)
 			mediaRequest(t, h, "HEAD", f.URL, "", 403)
 		}
 		mediaRequest(t, h, "GET", *picture.ThumbnailURL, "", 403)
 	}
-	locked()
+	locked(mid.Name)
 	fixtureSubscription(t, h, low.ID)
-	locked()
+	locked(mid.Name)
 	for _, tier := range []string{mid.ID, high.ID} {
 		fixtureSubscription(t, h, tier)
 		readable := postResult(t, h.expect("GET", "/posts/"+p.ID, "", 200))
@@ -458,7 +461,7 @@ func TestIntegrationPublicationsAccessAndMedia(t *testing.T) {
 		if _, err := h.pool.Exec(t.Context(), "UPDATE subscriptions SET "+change); err != nil {
 			t.Fatal(err)
 		}
-		locked()
+		locked(mid.Name)
 	}
 	h.expect("GET", "/me/posts/"+p.ID, "", 404)
 	h.expect("PUT", "/me/posts/"+p.ID, postBody("null"), 409)
@@ -470,7 +473,7 @@ func TestIntegrationPublicationsAccessAndMedia(t *testing.T) {
 	h.expect("DELETE", "/me/posts/"+p.ID+"/media/"+picture.ID, "", 404)
 	other := testTier(t, h.expect("POST", "/me/tiers", `{"name":"Чужой","description":"","priceKopecks":0}`, 201))
 	fixtureSubscription(t, h, other.ID)
-	locked()
+	locked(mid.Name)
 	h.client, h.csrf = ownerClient, ownerCSRF
 	h.expect("PUT", "/me/posts/"+p.ID, postBody(fmt.Sprintf("%q", other.ID)), 422)
 	// Public lists never include full bodies or filenames, even for the owner.
@@ -486,12 +489,12 @@ func TestIntegrationPublicationsAccessAndMedia(t *testing.T) {
 		t.Fatal("archived tier lost existing access")
 	}
 	h.client = &http.Client{}
-	locked()
+	locked(mid.Name)
 	h.client, h.csrf = ownerClient, ownerCSRF
 	h.expect("PUT", "/me/posts/"+p.ID, postBody("null"), 200)
 	h.client = &http.Client{}
-	if !postResult(t, h.expect("GET", "/posts/"+p.ID, "", 200)).CanRead {
-		t.Fatal("public post locked")
+	if public := postResult(t, h.expect("GET", "/posts/"+p.ID, "", 200)); !public.CanRead || public.MinimumTierName != nil {
+		t.Fatal("public post has restricted access")
 	}
 	mediaRequest(t, h, "GET", audio.URL, "bytes=0-4", 206)
 	if _, err := h.pool.Exec(t.Context(), "UPDATE users SET blocked=true WHERE nickname='writer'"); err != nil {
@@ -505,7 +508,7 @@ func TestIntegrationPublicationsAccessAndMedia(t *testing.T) {
 	h.client, h.csrf = ownerClient, ownerCSRF
 	h.expect("PUT", "/me/posts/"+p.ID, postBody(fmt.Sprintf("%q", high.ID)), 200)
 	h.client = &http.Client{}
-	locked()
+	locked(high.Name)
 	h.client, h.csrf = ownerClient, ownerCSRF
 	h.expect("POST", "/me/posts/"+p.ID+"/unpublish", "", 200)
 	h.client = &http.Client{}

@@ -1454,7 +1454,7 @@ components:
             updatedAt: {type: string, format: date-time}
     Post:
       allOf:
-        - {$ref: '#/components/schemas/PostSummary'}
+        - {$ref: '#/components/schemas/PostListItem'}
         - type: object
           required: [canRead]
           properties:

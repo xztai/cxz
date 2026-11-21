@@ -919,7 +919,7 @@ export interface components {
 			/** Format: date-time */
 			updatedAt: string;
 		};
-		Post: components['schemas']['PostSummary'] & {
+		Post: components['schemas']['PostListItem'] & {
 			canRead: boolean;
 			/** @description Only present with access */
 			bodyMarkdown?: string;

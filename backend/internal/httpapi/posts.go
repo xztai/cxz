@@ -38,7 +38,7 @@ type OwnPostSummary struct {
 }
 
 type Post struct {
-	PostSummary
+	PostListItem
 	CanRead      bool       `json:"canRead"`
 	BodyMarkdown *string    `json:"bodyMarkdown,omitempty"`
 	BodyHTML     *string    `json:"bodyHtml,omitempty"`
@@ -277,7 +277,13 @@ func (s *Server) postFor(r *http.Request, id int64) (Post, error) {
 	if err != nil {
 		return Post{}, err
 	}
-	result := Post{PostSummary: postSummary(p.ID, p.Nickname, p.Title, p.Teaser, p.MinimumTierID, p.PublishedAt), CanRead: p.CanRead}
+	result := Post{
+		PostSummary: postSummary(p.ID, p.Nickname, p.Title, p.Teaser, p.MinimumTierID, p.PublishedAt),
+		CanRead:     p.CanRead,
+	}
+	if p.MinimumTierName.Valid {
+		result.MinimumTierName = new(p.MinimumTierName.String)
+	}
 	if !p.CanRead {
 		return result, nil
 	}

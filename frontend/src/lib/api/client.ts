@@ -12,6 +12,8 @@ export type PostFile = components['schemas']['PostFile'];
 export type PostSummary = components['schemas']['PostSummary'];
 export type PostListItem = components['schemas']['PostListItem'];
 export type OwnPostSummary = components['schemas']['OwnPostSummary'];
+export type Comment = components['schemas']['Comment'];
+export type InteractionSummary = components['schemas']['InteractionSummary'];
 export type Subscription = components['schemas']['Subscription'];
 export type Payment = components['schemas']['Payment'];
 export type OwnPostStatus = Required<
@@ -298,6 +300,28 @@ export const api = {
 		request<Result<'authorPosts', 200>>(
 			`/authors/${encodeURIComponent(nickname)}/posts?${new URLSearchParams({ offset: String(offset) })}`,
 			{ signal }
+		),
+	post: (id: string, signal?: AbortSignal) =>
+		request<Result<'getPost', 200>>(`/posts/${encodeURIComponent(id)}`, { signal }),
+	discussion: (id: string, signal: AbortSignal, before?: string) =>
+		request<Result<'discussion', 200>>(
+			`/posts/${encodeURIComponent(id)}/discussion${before ? `?${new URLSearchParams({ before })}` : ''}`,
+			{ signal }
+		),
+	setPostLike: (id: string, liked: boolean, signal: AbortSignal) =>
+		request<Result<'likePost', 200> | Result<'unlikePost', 200>>(
+			`/posts/${encodeURIComponent(id)}/like`,
+			{ method: liked ? 'PUT' : 'DELETE', signal }
+		),
+	createComment: (id: string, body: string, signal: AbortSignal) =>
+		request<Result<'createComment', 201>>(`/posts/${encodeURIComponent(id)}/comments`, {
+			body: { body },
+			signal
+		}),
+	deleteComment: (id: string, commentId: string, signal: AbortSignal) =>
+		request<Result<'deleteComment', 200>>(
+			`/posts/${encodeURIComponent(id)}/comments/${encodeURIComponent(commentId)}`,
+			{ method: 'DELETE', signal }
 		),
 	subscriptions: (offset: number, signal?: AbortSignal) =>
 		request<Result<'subscriptions', 200>>(

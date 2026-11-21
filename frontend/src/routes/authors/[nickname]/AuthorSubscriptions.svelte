@@ -24,6 +24,10 @@
 	let message = $state('');
 	let retry = $state(0);
 
+	function focusTiers(heading: HTMLHeadingElement) {
+		if (window.location.hash === '#author-tiers-heading') heading.focus();
+	}
+
 	$effect(() => {
 		const authorId = profile.id;
 		const userId = viewerId;
@@ -66,7 +70,7 @@
 </script>
 
 <section aria-labelledby="author-tiers-heading">
-	<h2 id="author-tiers-heading">Уровни подписки</h2>
+	<h2 id="author-tiers-heading" tabindex="-1" {@attach focusTiers}>Уровни подписки</h2>
 	{#if current && availableTiers.some((tier) => tier.id !== current?.tierId)}
 		<p id="active-subscription-note" class="subscription-note">
 			У вас уже есть действующая подписка на этого автора.

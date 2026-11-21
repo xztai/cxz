@@ -36,9 +36,10 @@ LEFT JOIN subscription_tiers t ON t.id=p.minimum_tier_id AND t.author_id=p.autho
 WHERE p.author_id=$1 AND p.published_at IS NOT NULL ORDER BY p.id DESC LIMIT 25 OFFSET $2;
 
 -- name: PostAccess :one
-SELECT p.*, u.nickname,
+SELECT p.*, u.nickname, t.name AS minimum_tier_name,
  post_readable(p,sqlc.arg(viewer_id)::bigint)::boolean AS can_read
 FROM posts p JOIN users u ON u.id=p.author_id
+LEFT JOIN subscription_tiers t ON t.id=p.minimum_tier_id AND t.author_id=p.author_id
 WHERE p.id=$1 AND NOT u.blocked AND u.email_verified
  AND (p.published_at IS NOT NULL OR p.author_id=sqlc.arg(viewer_id)::bigint);
 

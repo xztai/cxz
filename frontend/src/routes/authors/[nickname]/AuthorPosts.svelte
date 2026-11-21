@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { onMount, tick } from 'svelte';
 	import { api, errorMessage, type PostListItem } from '#lib/api/client.js';
 	import Icon from '#lib/components/Icon.svelte';
@@ -73,7 +74,7 @@
 							<span class="post-access">Публично</span>
 						{/if}
 					</div>
-					<h3 tabindex="-1">{post.title}</h3>
+					<h3 tabindex="-1"><a href={resolve('/posts/[id]', { id: post.id })}>{post.title}</a></h3>
 					{#if post.teaser}<p class="teaser">{post.teaser}</p>{/if}
 				</li>
 			{/each}
@@ -140,6 +141,10 @@
 		font-weight: 800;
 		line-height: 1.4;
 		margin-bottom: 0;
+	}
+	h3 a:hover {
+		color: var(--blue-hover);
+		text-decoration: underline;
 	}
 	.teaser {
 		max-width: 72ch;

@@ -348,9 +348,10 @@ func (q *Queries) OwnPost(ctx context.Context, arg OwnPostParams) (Post, error) 
 }
 
 const postAccess = `-- name: PostAccess :one
-SELECT p.id, p.author_id, p.title, p.teaser, p.body_markdown, p.minimum_tier_id, p.published_at, p.created_at, p.updated_at, u.nickname,
+SELECT p.id, p.author_id, p.title, p.teaser, p.body_markdown, p.minimum_tier_id, p.published_at, p.created_at, p.updated_at, u.nickname, t.name AS minimum_tier_name,
  post_readable(p,$2::bigint)::boolean AS can_read
 FROM posts p JOIN users u ON u.id=p.author_id
+LEFT JOIN subscription_tiers t ON t.id=p.minimum_tier_id AND t.author_id=p.author_id
 WHERE p.id=$1 AND NOT u.blocked AND u.email_verified
  AND (p.published_at IS NOT NULL OR p.author_id=$2::bigint)
 `
@@ -361,17 +362,18 @@ type PostAccessParams struct {
 }
 
 type PostAccessRow struct {
-	ID            int64
-	AuthorID      int64
-	Title         string
-	Teaser        string
-	BodyMarkdown  string
-	MinimumTierID pgtype.Int8
-	PublishedAt   pgtype.Timestamptz
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
-	Nickname      string
-	CanRead       bool
+	ID              int64
+	AuthorID        int64
+	Title           string
+	Teaser          string
+	BodyMarkdown    string
+	MinimumTierID   pgtype.Int8
+	PublishedAt     pgtype.Timestamptz
+	CreatedAt       pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
+	Nickname        string
+	MinimumTierName pgtype.Text
+	CanRead         bool
 }
 
 func (q *Queries) PostAccess(ctx context.Context, arg PostAccessParams) (PostAccessRow, error) {
@@ -388,6 +390,7 @@ func (q *Queries) PostAccess(ctx context.Context, arg PostAccessParams) (PostAcc
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Nickname,
+		&i.MinimumTierName,
 		&i.CanRead,
 	)
 	return i, err
