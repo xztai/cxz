@@ -8,7 +8,10 @@
 	import Icon from './Icon.svelte';
 	import { getSession } from '#lib/session.svelte.js';
 	const session = getSession();
-	let { mode }: { mode: 'login' | 'verify' | 'forgot' | 'reset' } = $props();
+	let {
+		mode,
+		returnAuthor
+	}: { mode: 'login' | 'verify' | 'forgot' | 'reset'; returnAuthor?: string } = $props();
 	let email = $state('');
 	let password = $state('');
 	let token = $state('');
@@ -134,8 +137,12 @@
 					Добро пожаловать, <strong>{user.nickname}</strong>. Теперь можно знакомиться с авторами и
 					их работами.
 				</p>
-				<a class="button button-primary" href={resolve('/authors')}
-					>Найти авторов<Icon name="arrow" /></a
+				<a
+					class="button button-primary"
+					href={returnAuthor
+						? resolve('/authors/[nickname]', { nickname: returnAuthor })
+						: resolve('/authors')}
+					>{returnAuthor ? 'Вернуться к автору' : 'Найти авторов'}<Icon name="arrow" /></a
 				>
 			{:else if mode === 'reset'}<p class="intro">Используйте новый пароль для входа в аккаунт.</p>
 				<a class="button button-primary" href={resolve('/login')}>Войти</a>

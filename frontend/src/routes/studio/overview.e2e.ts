@@ -1,5 +1,13 @@
 import { expect, test, type BrowserContext, type Page, type Request } from '@playwright/test';
-import type { Analytics, OwnPostSummary, Post, Profile, Tier, User } from '#lib/api/client.js';
+import type {
+	Analytics,
+	OwnPostSummary,
+	Post,
+	PostFile,
+	Profile,
+	Tier,
+	User
+} from '#lib/api/client.js';
 
 const csrf = 'a'.repeat(43);
 const user = {
@@ -184,6 +192,145 @@ test('Studio guides setup and supports a public post before the first tier', asy
 	await expect(main.getByRole('link', { name: 'Новый пост' })).toBeVisible();
 });
 
+test('Post editor previews Markdown and unlocks attachments after saving a draft', async ({
+	page
+}) => {
+	await mockAccount(page);
+	await page.route('**/api/v1/me/profile', (route) =>
+		route.fulfill({ json: { ownerId: user.id, profile } })
+	);
+	await page.route('**/api/v1/me/tiers', (route) => route.fulfill({ json: { tiers: [tier] } }));
+
+	let savedPost = post('7');
+	let publishAttempts = 0;
+	await page.route('**/api/v1/me/posts', async (route) => {
+		expectStudioMutation(route.request());
+		savedPost = { ...savedPost, ...route.request().postDataJSON() };
+		await route.fulfill({ status: 201, json: { post: savedPost } });
+	});
+	await page.route('**/api/v1/me/posts/7', async (route) => {
+		if (route.request().method() === 'PUT') {
+			expectStudioMutation(route.request());
+			savedPost = { ...savedPost, ...route.request().postDataJSON() };
+		}
+		await route.fulfill({ json: { post: savedPost } });
+	});
+	await page.route('**/api/v1/me/posts/7/publish', async (route) => {
+		expectStudioMutation(route.request());
+		if (++publishAttempts === 1) {
+			await route.fulfill({ status: 503, json: { error: { code: 'unavailable' } } });
+			return;
+		}
+		savedPost = { ...savedPost, publishedAt };
+		await route.fulfill({ json: { post: savedPost } });
+	});
+	await page.route('**/api/v1/me/posts/7/unpublish', async (route) => {
+		expectStudioMutation(route.request());
+		savedPost = { ...savedPost, publishedAt: null };
+		await route.fulfill({ json: { post: savedPost } });
+	});
+
+	const file: PostFile = {
+		id: '12',
+		kind: 'image',
+		filename: 'эскиз.png',
+		contentType: 'image/png',
+		sizeBytes: 1024,
+		url: '/api/v1/media/12/original',
+		thumbnailUrl: '/api/v1/media/12/thumbnail'
+	};
+	let allowUpload: () => void;
+	const waitForUpload = new Promise<void>((resolve) => (allowUpload = resolve));
+	await page.route('**/api/v1/me/posts/7/media?*', async (route) => {
+		const request = route.request();
+		expectStudioMutation(request);
+		expect(request.headers()['content-type']).toBe('application/octet-stream');
+		expect(request.postDataBuffer()?.length).toBe(file.sizeBytes);
+		expect(Object.fromEntries(new URL(request.url()).searchParams)).toEqual({
+			kind: file.kind,
+			filename: file.filename
+		});
+		await waitForUpload;
+		savedPost = { ...savedPost, media: [file] };
+		await route.fulfill({ status: 201, json: { media: file } });
+	});
+	await page.route('**/api/v1/me/posts/7/media/12', async (route) => {
+		expectStudioMutation(route.request());
+		expect(route.request().method()).toBe('DELETE');
+		savedPost = { ...savedPost, media: [] };
+		await route.fulfill({ json: { message: 'Файл удалён из публикации.' } });
+	});
+	await page.route('**/api/v1/media/12/thumbnail', (route) =>
+		route.fulfill({
+			contentType: 'image/png',
+			body: Buffer.from(
+				'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD1sAAAAASUVORK5CYII=',
+				'base64'
+			)
+		})
+	);
+
+	await page.goto('/studio/posts/new');
+	const files = page.getByRole('region', { name: 'Файлы' });
+	const picker = files.getByLabel('Выбрать файлы');
+	await expect(page.getByRole('link', { name: 'Назад' })).toHaveAttribute('href', '/studio/posts');
+	await expect(picker).toBeDisabled();
+	await expect(files.getByLabel('Тип файла')).toBeDisabled();
+	await expect(page.getByText('Виден всем', { exact: true })).toBeVisible();
+	await page.getByLabel('Заголовок').fill('Новый эскиз');
+	await page.getByLabel('Тизер').fill('Заметки из мастерской');
+	await page.getByLabel('Доступ').selectOption({ label: tier.name });
+	const markdown = '## Эскиз\n\n**Подпись** <mark>текст</mark>';
+	await page.getByLabel('Текст поста').fill(markdown);
+	await page.getByRole('button', { name: 'Предпросмотр' }).click();
+	await expect(page.getByRole('heading', { name: 'Эскиз' })).toBeVisible();
+	await expect(page.locator('#post-preview strong')).toHaveText('Подпись');
+	await expect(page.locator('#post-preview mark')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Редактор' }).click();
+	await expect(page.getByLabel('Текст поста')).toHaveValue(markdown);
+
+	await page.getByRole('button', { name: 'Опубликовать' }).click();
+	await expect(page).toHaveURL('/studio/posts/7/edit');
+	await expect(page.getByRole('alert')).toContainText('Черновик сохранён.');
+	await expect(page.getByText('Черновик', { exact: true })).toBeVisible();
+	await expect(picker).toBeEnabled();
+	await expect(page.getByLabel('Доступ')).toHaveValue(tier.id);
+
+	await files.getByLabel('Тип файла').selectOption('image');
+	try {
+		await picker.setInputFiles({
+			name: file.filename,
+			mimeType: file.contentType,
+			buffer: Buffer.alloc(file.sizeBytes)
+		});
+		await expect(
+			files.getByRole('progressbar', { name: `Загрузка ${file.filename}` })
+		).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
+	} finally {
+		allowUpload!();
+	}
+	await expect(files.getByText('Изображение · 1 КБ')).toBeVisible();
+	await expect(files.locator('img')).toHaveAttribute('src', file.thumbnailUrl!);
+	await files.getByRole('button', { name: `Открепить ${file.filename}` }).click();
+	await expect(files.getByText(file.filename)).toHaveCount(0);
+
+	const dataTransfer = await page.evaluateHandle(({ filename, sizeBytes, contentType }) => {
+		const transfer = new DataTransfer();
+		transfer.items.add(new File([new Uint8Array(sizeBytes)], filename, { type: contentType }));
+		return transfer;
+	}, file);
+	await files.getByText('или перетащить сюда').dispatchEvent('drop', { dataTransfer });
+	await expect(files.getByText(file.filename)).toBeVisible();
+	await expect(files.getByRole('button', { name: `Открепить ${file.filename}` })).toBeEnabled();
+	await dataTransfer.dispose();
+
+	await page.getByRole('button', { name: 'Опубликовать' }).click();
+	await expect(page.getByText('Опубликован', { exact: true })).toBeVisible();
+	await page.getByRole('button', { name: 'Снять', exact: true }).click();
+	await expect(page.getByText('Черновик', { exact: true })).toBeVisible();
+});
+
 test('Studio confines tier moves to their section and reloads the order after a conflict', async ({
 	page
 }) => {
@@ -351,7 +498,7 @@ test('Studio detects older publications in one request and retries analytics on 
 			}
 		})
 	);
-	await page.route('**/api/v1/me/analytics', (route) =>
+	await page.route(/\/api\/v1\/me\/analytics(?:\?|$)/, (route) =>
 		failAnalytics ? route.fulfill({ status: 503, json: {} }) : route.fulfill({ json: analytics })
 	);
 
@@ -381,6 +528,7 @@ test('Studio detects older publications in one request and retries analytics on 
 	await nav.getByRole('link', { name: 'Аналитика' }).click();
 	await expect(page).toHaveURL('/studio/analytics');
 	await expect(page.getByRole('heading', { name: 'Аналитика', level: 1 })).toBeVisible();
+	await expect(page.getByRole('main').getByText('Тестовый режим')).toBeVisible();
 	await expect(nav).toBeHidden();
 });
 

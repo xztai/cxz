@@ -306,7 +306,7 @@ SELECT id,'Черновик' FROM users WHERE nickname='writer' RETURNING id`).S
 		t.Fatalf("unexpected public page: %s", body)
 	}
 	publicPost, ok := publicPosts[0].(map[string]any)
-	if !ok || len(publicPost) != 6 || publicPost["id"] != older.ID || publicPost["minimumTierId"] != tier.ID {
+	if !ok || len(publicPost) != 7 || publicPost["id"] != older.ID || publicPost["minimumTierId"] != tier.ID || publicPost["minimumTierName"] != tier.Name {
 		t.Fatalf("unexpected public summary: %s", body)
 	}
 

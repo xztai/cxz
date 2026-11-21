@@ -274,8 +274,10 @@ func (q *Queries) ListPostMedia(ctx context.Context, postID pgtype.Int8) ([]Post
 }
 
 const listPublishedPosts = `-- name: ListPublishedPosts :many
-SELECT id,title,teaser,minimum_tier_id,published_at FROM posts
-WHERE author_id=$1 AND published_at IS NOT NULL ORDER BY id DESC LIMIT 25 OFFSET $2
+SELECT p.id,p.title,p.teaser,p.minimum_tier_id,p.published_at,t.name AS minimum_tier_name
+FROM posts p
+LEFT JOIN subscription_tiers t ON t.id=p.minimum_tier_id AND t.author_id=p.author_id
+WHERE p.author_id=$1 AND p.published_at IS NOT NULL ORDER BY p.id DESC LIMIT 25 OFFSET $2
 `
 
 type ListPublishedPostsParams struct {
@@ -284,11 +286,12 @@ type ListPublishedPostsParams struct {
 }
 
 type ListPublishedPostsRow struct {
-	ID            int64
-	Title         string
-	Teaser        string
-	MinimumTierID pgtype.Int8
-	PublishedAt   pgtype.Timestamptz
+	ID              int64
+	Title           string
+	Teaser          string
+	MinimumTierID   pgtype.Int8
+	PublishedAt     pgtype.Timestamptz
+	MinimumTierName pgtype.Text
 }
 
 func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPostsParams) ([]ListPublishedPostsRow, error) {
@@ -306,6 +309,7 @@ func (q *Queries) ListPublishedPosts(ctx context.Context, arg ListPublishedPosts
 			&i.Teaser,
 			&i.MinimumTierID,
 			&i.PublishedAt,
+			&i.MinimumTierName,
 		); err != nil {
 			return nil, err
 		}

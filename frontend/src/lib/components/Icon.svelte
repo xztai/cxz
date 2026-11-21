@@ -13,6 +13,7 @@
 		profile: 'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v2',
 		layers: 'm12 3 9 5-9 5-9-5zm-9 9 9 5 9-5m-18 4 9 5 9-5',
 		post: 'M6 3h9l4 4v14H6zm8 0v5h5m-9 4h5m-5 4h5',
+		upload: 'M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4',
 		analytics: 'M4 3v17h17M9 16v-4m5 4V8m5 8V4',
 		menu: 'M4 6h16M4 12h16M4 18h16',
 		chevron: 'm6 9 6 6 6-6',

@@ -7,6 +7,7 @@ declare global {
 		// interface PageData {}
 		interface PageState {
 			profilePreview?: boolean;
+			postEditorFeedback?: { text: string; error?: boolean };
 		}
 		// interface Platform {}
 	}

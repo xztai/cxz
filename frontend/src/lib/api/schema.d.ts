@@ -491,7 +491,7 @@ export interface paths {
 			path?: never;
 			cookie?: never;
 		};
-		/** @description Published titles and explicit public teasers only; never contains body or media. */
+		/** @description Published summaries with titles, explicit public teasers and minimum tier names; never contains body or media. */
 		get: operations['authorPosts'];
 		put?: never;
 		post?: never;
@@ -911,11 +911,13 @@ export interface components {
 			/** Format: date-time */
 			publishedAt: string | null;
 		};
-		OwnPostSummary: components['schemas']['PostSummary'] & {
-			/** Format: date-time */
-			updatedAt: string;
+		PostListItem: components['schemas']['PostSummary'] & {
 			/** @description Name of the minimum subscription tier, including archived tiers. Null for public posts. */
 			minimumTierName: string | null;
+		};
+		OwnPostSummary: components['schemas']['PostListItem'] & {
+			/** Format: date-time */
+			updatedAt: string;
 		};
 		Post: components['schemas']['PostSummary'] & {
 			canRead: boolean;
@@ -1058,7 +1060,7 @@ export interface components {
 			};
 			content: {
 				'application/json': {
-					posts: components['schemas']['PostSummary'][];
+					posts: components['schemas']['PostListItem'][];
 					hasMore: boolean;
 				};
 			};

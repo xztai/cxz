@@ -8,11 +8,11 @@
 
 <svelte:head><title>Новый пост — etheyl</title></svelte:head>
 
-<a class="studio-link back" href={resolve('/studio/posts')}>Все посты</a>
-<h1 class="studio-heading">Новый пост</h1>
 {#if data.access.state === 'ready' && data.access.profile}
 	<PostEditor tiers={data.tiers} ownerId={data.access.ownerId} />
 {:else}
+	<a class="studio-link back" href={resolve('/studio/posts')}>Назад</a>
+	<h1 class="studio-heading">Новый пост</h1>
 	<div class="studio-panel">
 		<p class="studio-copy">Посты можно создавать после сохранения профиля автора.</p>
 		<a class="button button-primary" href={resolve('/studio/profile')}>Создать профиль</a>

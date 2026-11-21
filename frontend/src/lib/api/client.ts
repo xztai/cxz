@@ -8,8 +8,12 @@ export type Tier = components['schemas']['Tier'];
 export type TierInput = components['schemas']['TierInput'];
 export type Post = components['schemas']['Post'];
 export type PostInput = components['schemas']['PostInput'];
+export type PostFile = components['schemas']['PostFile'];
 export type PostSummary = components['schemas']['PostSummary'];
+export type PostListItem = components['schemas']['PostListItem'];
 export type OwnPostSummary = components['schemas']['OwnPostSummary'];
+export type Subscription = components['schemas']['Subscription'];
+export type Payment = components['schemas']['Payment'];
 export type OwnPostStatus = Required<
 	NonNullable<operations['ownPosts']['parameters']['query']>
 >['status'];
@@ -42,7 +46,44 @@ type RequestOptions = {
 	signal?: AbortSignal;
 	method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
 	fetcher?: typeof fetch;
+	onUploadProgress?: (fraction: number) => void;
 };
+
+function upload(
+	url: string,
+	headers: Headers,
+	file: Blob,
+	onProgress: (fraction: number) => void,
+	signal?: AbortSignal
+) {
+	return new Promise<Response>((resolve, reject) => {
+		signal?.throwIfAborted();
+		const xhr = new XMLHttpRequest();
+		const abort = () => xhr.abort();
+		xhr.open('POST', url);
+		xhr.timeout = 10 * 60 * 1000;
+		headers.forEach((value, name) => xhr.setRequestHeader(name, value));
+		xhr.upload.onprogress = ({ loaded, total, lengthComputable }) => {
+			if (lengthComputable && total > 0) onProgress(loaded / total);
+		};
+		xhr.upload.onload = () => onProgress(1);
+		xhr.onload = () => {
+			const retryAfter = xhr.getResponseHeader('Retry-After');
+			resolve(
+				new Response(xhr.responseText || null, {
+					status: xhr.status,
+					headers: retryAfter ? { 'Retry-After': retryAfter } : undefined
+				})
+			);
+		};
+		xhr.onerror = () => reject(new ApiError('network'));
+		xhr.ontimeout = xhr.onerror;
+		xhr.onabort = () => reject(signal?.reason);
+		xhr.onloadend = () => signal?.removeEventListener('abort', abort);
+		signal?.addEventListener('abort', abort, { once: true });
+		xhr.send(file);
+	});
+}
 
 async function request<T>(
 	path: string,
@@ -51,7 +92,8 @@ async function request<T>(
 		expectedUserId,
 		signal,
 		method = body === undefined ? 'GET' : 'POST',
-		fetcher = fetch
+		fetcher = fetch,
+		onUploadProgress
 	}: RequestOptions = {}
 ): Promise<T> {
 	const headers = new Headers({ Accept: 'application/json' });
@@ -60,20 +102,29 @@ async function request<T>(
 	if (method !== 'GET') {
 		const csrf = await request<Result<'csrf', 200>>('/auth/csrf', { fetcher });
 		headers.set('X-CSRF-Token', csrf.token);
-		if (body !== undefined) headers.set('Content-Type', rawBody?.type ?? 'application/json');
+		if (body !== undefined) {
+			headers.set(
+				'Content-Type',
+				onUploadProgress ? 'application/octet-stream' : (rawBody?.type ?? 'application/json')
+			);
+		}
 	}
 	let response: Response;
 	try {
-		response = await fetcher(`/api/v1${path}`, {
-			method,
-			credentials: 'same-origin',
-			cache: 'no-store',
-			headers,
-			body: rawBody ?? (body === undefined ? undefined : JSON.stringify(body)),
-			signal: signal
-				? AbortSignal.any([signal, AbortSignal.timeout(15000)])
-				: AbortSignal.timeout(15000)
-		});
+		const url = `/api/v1${path}`;
+		response =
+			rawBody && onUploadProgress
+				? await upload(url, headers, rawBody, onUploadProgress, signal)
+				: await fetcher(url, {
+						method,
+						credentials: 'same-origin',
+						cache: 'no-store',
+						headers,
+						body: rawBody ?? (body === undefined ? undefined : JSON.stringify(body)),
+						signal: signal
+							? AbortSignal.any([signal, AbortSignal.timeout(15000)])
+							: AbortSignal.timeout(15000)
+					});
 	} catch (error) {
 		if (signal?.aborted) throw error;
 		throw new ApiError('network');
@@ -205,20 +256,58 @@ export const api = {
 			expectedUserId,
 			body: {}
 		}),
+	uploadPostMedia: (
+		expectedUserId: string,
+		id: string,
+		kind: PostFile['kind'],
+		file: File,
+		onUploadProgress: (fraction: number) => void,
+		signal: AbortSignal
+	) =>
+		request<Result<'uploadPostMedia', 201>>(
+			`/me/posts/${encodeURIComponent(id)}/media?${new URLSearchParams({ kind, filename: file.name })}`,
+			{ expectedUserId, body: file, onUploadProgress, signal }
+		),
+	detachPostMedia: (expectedUserId: string, id: string, mediaId: string) =>
+		request<Result<'detachPostMedia', 200>>(
+			`/me/posts/${encodeURIComponent(id)}/media/${encodeURIComponent(mediaId)}`,
+			{ expectedUserId, method: 'DELETE' }
+		),
 	deletePost: (expectedUserId: string, id: string) =>
 		request<Result<'deletePost', 200>>(`/me/posts/${encodeURIComponent(id)}`, {
 			expectedUserId,
 			method: 'DELETE'
 		}),
-	analytics: (expectedUserId: string, fetcher?: typeof fetch) =>
-		request<Result<'analytics', 200>>('/me/analytics', { expectedUserId, fetcher }),
+	analytics: (
+		expectedUserId: string,
+		fetcher?: typeof fetch,
+		period?: operations['analytics']['parameters']['query']
+	) =>
+		request<Result<'analytics', 200>>(
+			period ? `/me/analytics?${new URLSearchParams(period)}` : '/me/analytics',
+			{ expectedUserId, fetcher }
+		),
 	authors: (q: string, offset: number, signal?: AbortSignal) =>
 		request<Result<'listAuthors', 200>>(
 			`/authors?${new URLSearchParams({ q, offset: String(offset) })}`,
 			{ signal }
 		),
 	author: (nickname: string, signal?: AbortSignal) =>
-		request<Result<'publicAuthor', 200>>(`/authors/${encodeURIComponent(nickname)}`, { signal })
+		request<Result<'publicAuthor', 200>>(`/authors/${encodeURIComponent(nickname)}`, { signal }),
+	authorPosts: (nickname: string, offset: number, signal?: AbortSignal) =>
+		request<Result<'authorPosts', 200>>(
+			`/authors/${encodeURIComponent(nickname)}/posts?${new URLSearchParams({ offset: String(offset) })}`,
+			{ signal }
+		),
+	subscriptions: (offset: number, signal?: AbortSignal) =>
+		request<Result<'subscriptions', 200>>(
+			`/me/subscriptions?${new URLSearchParams({ offset: String(offset) })}`,
+			{ signal }
+		),
+	checkout: (body: operations['checkout']['requestBody']['content']['application/json']) =>
+		request<Result<'checkout', 202>>('/billing/checkout', { body }),
+	payment: (id: string, signal?: AbortSignal) =>
+		request<Result<'payment', 200>>(`/me/payments/${encodeURIComponent(id)}`, { signal })
 };
 
 export function errorMessage(error: unknown): string {
@@ -237,6 +326,16 @@ export function errorMessage(error: unknown): string {
 		invalid_nickname: 'Никнейм: от 3 до 30 латинских букв, цифр, знаков _ или -.',
 		tier_limit: 'Можно создать не более 50 активных уровней.',
 		tier_order_locked: 'Позицию используемого уровня менять нельзя.',
+		payments_disabled: 'Оплата пока недоступна.',
+		price_changed: 'Цена изменилась. Обновите страницу, чтобы увидеть новую сумму.',
+		tier_unavailable: 'Уровень больше недоступен. Обновите страницу.',
+		checkout_terms_conflict: 'У вас есть незавершённый платёж с другими условиями.',
+		subscription_active: 'У вас уже есть действующая подписка на этого автора.',
+		invalid_price: 'Минимальная сумма оплаты — 1 ₽.',
+		own_subscription: 'Вы смотрите свой профиль.',
+		file_too_large: 'Размер файла не должен превышать 100 МБ.',
+		invalid_file: 'Проверьте формат файла или загрузите его с типом «Вложение».',
+		storage_unavailable: 'Хранилище временно недоступно. Попробуйте позже.',
 		csrf: 'Не удалось проверить запрос. Обновите страницу и повторите попытку.',
 		network: 'Нет связи с сервером. Проверьте подключение и попробуйте ещё раз.'
 	};

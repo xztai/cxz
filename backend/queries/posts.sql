@@ -30,8 +30,10 @@ LIMIT 25 OFFSET sqlc.arg('offset');
 SELECT EXISTS (SELECT 1 FROM posts WHERE author_id=$1 AND published_at IS NOT NULL);
 
 -- name: ListPublishedPosts :many
-SELECT id,title,teaser,minimum_tier_id,published_at FROM posts
-WHERE author_id=$1 AND published_at IS NOT NULL ORDER BY id DESC LIMIT 25 OFFSET $2;
+SELECT p.id,p.title,p.teaser,p.minimum_tier_id,p.published_at,t.name AS minimum_tier_name
+FROM posts p
+LEFT JOIN subscription_tiers t ON t.id=p.minimum_tier_id AND t.author_id=p.author_id
+WHERE p.author_id=$1 AND p.published_at IS NOT NULL ORDER BY p.id DESC LIMIT 25 OFFSET $2;
 
 -- name: PostAccess :one
 SELECT p.*, u.nickname,

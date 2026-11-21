@@ -27,10 +27,14 @@ type PostSummary struct {
 	PublishedAt    *time.Time `json:"publishedAt"`
 }
 
-type OwnPostSummary struct {
+type PostListItem struct {
 	PostSummary
-	UpdatedAt       time.Time `json:"updatedAt"`
-	MinimumTierName *string   `json:"minimumTierName"`
+	MinimumTierName *string `json:"minimumTierName"`
+}
+
+type OwnPostSummary struct {
+	PostListItem
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type Post struct {
@@ -388,9 +392,15 @@ func (s *Server) authorPosts(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	posts := make([]PostSummary, 0, min(len(rows), 24))
+	posts := make([]PostListItem, 0, min(len(rows), 24))
 	for _, row := range rows[:min(len(rows), 24)] {
-		posts = append(posts, postSummary(row.ID, p.Nickname, row.Title, row.Teaser, row.MinimumTierID, row.PublishedAt))
+		post := PostListItem{
+			PostSummary: postSummary(row.ID, p.Nickname, row.Title, row.Teaser, row.MinimumTierID, row.PublishedAt),
+		}
+		if row.MinimumTierName.Valid {
+			post.MinimumTierName = new(row.MinimumTierName.String)
+		}
+		posts = append(posts, post)
 	}
 	return respond(w, 200, map[string]any{"posts": posts, "hasMore": len(rows) > 24})
 }
