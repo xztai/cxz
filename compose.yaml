@@ -140,7 +140,9 @@ services:
       db-grants: {condition: service_completed_successfully}
       rustfs: {condition: service_healthy}
   rustfs:
-    image: rustfs/rustfs:1.0.6@sha256:ee717072290bec9b11abfc0365f8310b00df1cd9b3639943edae47bdef05044a
+    build:
+      context: .
+      dockerfile: infra/rustfs.Dockerfile
     environment:
       RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-etheyl}
       RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?Run make init}
@@ -149,7 +151,7 @@ services:
     networks: [data]
     restart: unless-stopped
     healthcheck:
-      test: [CMD, curl, -fsS, http://127.0.0.1:9000/health/ready]
+      test: [CMD, rustfs-healthcheck, http://127.0.0.1:9000/health/ready]
       interval: 10s
       timeout: 5s
       retries: 20

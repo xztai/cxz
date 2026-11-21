@@ -11,7 +11,9 @@ RUN pnpm prune --prod --ignore-scripts
 
 FROM base AS runtime
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
-RUN apk add --no-cache zlib=1.4-r0 \
+# Node carries its own TLS library. Retain the system CA bundle when removing apk.
+RUN apk add --no-cache ca-certificates-bundle zlib=1.4-r0 \
+    && apk del --no-network apk-tools \
     && rm -r /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 COPY --from=build --chown=node:node /app/build ./build
 COPY --from=build --chown=node:node /app/package.json ./package.json

@@ -1,7 +1,9 @@
 # Dedicated test database; never points integration tests at application data.
 services:
   test-rustfs:
-    image: rustfs/rustfs:1.0.6@sha256:ee717072290bec9b11abfc0365f8310b00df1cd9b3639943edae47bdef05044a
+    build:
+      context: .
+      dockerfile: infra/rustfs.Dockerfile
     environment:
       RUSTFS_ACCESS_KEY: etheyl_test
       RUSTFS_SECRET_KEY: etheyl_test_password
@@ -9,7 +11,7 @@ services:
     ports: ['127.0.0.1:${TEST_S3_PORT:-9002}:9000']
     tmpfs: ['/data:uid=10001,gid=10001,mode=0700']
     healthcheck:
-      test: [CMD, curl, -fsS, http://127.0.0.1:9000/health/ready]
+      test: [CMD, rustfs-healthcheck, http://127.0.0.1:9000/health/ready]
       interval: 2s
       timeout: 3s
       retries: 30
